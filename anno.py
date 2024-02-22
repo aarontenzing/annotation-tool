@@ -68,24 +68,33 @@ class App:
         if not os.path.exists(self.dir_data):
             os.makedirs(self.dir_data)
         
-        self.background_path = os.path.join(self.dir_data, "IMG_0588.JPG")
-        img_width = pg.image.load(self.background_path).get_width()
-        img_height = pg.image.load(self.background_path).get_height()
+        self.background_path = [] # list of background images in dir data/
+        
+        for file in os.listdir(self.dir_data):
+            if file.endswith(".jpg") or file.endswith(".JPG"):
+                self.background_path.append(os.path.join(self.dir_data, file))
+        
+        print("background path: ", self.background_path[0])
+        self.count_background = 0
+               
+        img_width = pg.image.load(self.background_path[0]).get_width()
+        img_height = pg.image.load(self.background_path[0]).get_height()
         print("image size: ", img_width, img_height)
         
         i=1
         while (img_width / i) > screen_info.current_w or (img_height / i) > screen_info.current_h:
             i+=1
         print("scale is ", i)
-        print("the windw will be: ", 5472/i, 3648/i)
+        print("the windw will be: ", img_width/i, img_height/i)
         
         self.screen_size_factor=i
-        self.window_width= 5472/self.screen_size_factor
-        self.window_height=3648/self.screen_size_factor
+        self.window_width= img_width/self.screen_size_factor
+        self.window_height=img_height/self.screen_size_factor
+        
         self.display = (int(self.window_width), int(self.window_height))
         
         self.screen = pg.display.set_mode(self.display, pg.OPENGL | pg.DOUBLEBUF) # tell pygame we run OPENGL & DOUBLEBUFFERING, one frame vis & one drawing
-        pg.display.set_caption("Wireframe generator")     
+        pg.display.set_caption("Annotation Tool 3D")     
      
         # initialize OpenGL
         glClearColor(0,0,0,1) # set the color of the background
@@ -112,7 +121,7 @@ class App:
         self.rectangle.draw_wired_rect()
         
         # Background
-        self.background = Background(self.background_path)
+        self.background = Background(self.background_path[0])
         
         # Text
         self.font = pg.font.Font(None, 24)
@@ -129,6 +138,20 @@ class App:
         textData = pg.image.tostring(textSurface, "RGBA", True)
         glWindowPos2d(x, y)
         glDrawPixels(textSurface.get_width(), textSurface.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, textData)
+
+    def new_background(self, select):
+        # Destroy the current background object
+        self.background.destroy()
+        del self.background
+        
+        # Calculate the new index based on the selection
+        if select == "next":
+            self.count_background = (self.count_background + 1) % len(self.background_path)
+        elif select == "previous":
+            self.count_background = (self.count_background - 1) % len(self.background_path)
+
+        # Create the new background object based on the new index
+        self.background = Background(self.background_path[self.count_background])
         
     
     def mainLoop(self):
@@ -176,7 +199,15 @@ class App:
                     if (event.key == pg.K_1):
                         self.rectangle.dimension('reset')
                         print("reset dimension (1, 1, 1)") 
-                        
+                    
+                    if (event.key == pg.K_n):
+                        self.new_background("next")
+                        print("next background")
+                    
+                    if (event.key == pg.K_p):
+                        self.new_background("previous")
+                        print("previous background")
+                     
                     # Dimension
                     if (event.key == pg.K_w):
                         if (event.mod & pg.KMOD_CAPS or event.mod & pg.KMOD_SHIFT):
@@ -250,9 +281,10 @@ class App:
                 
             # --- Text --- #
             self.drawText(self.window_width-100, self.window_height-100, f"Step: {round(step, 1) if step > 0.1 else step}")
-            self.drawText(150, 50, f"Rotation x : {round(self.rectangle.eulers[0])}, y : {round(self.rectangle.eulers[1])}, z : {round(self.rectangle.eulers[2])}")
-            self.drawText(150, 70, f"Translation x : {round(self.rectangle.position[0])}, y : {round(self.rectangle.position[1])}, z : {round(self.rectangle.position[2])}")
-            self.drawText(150, 90, f"Dimension w : {round(self.rectangle.width)}, h : {round(self.rectangle.height)}, d : {round(self.rectangle.depth)}")
+            self.drawText(10, 50, f"Rotation x : {round(self.rectangle.eulers[0])}, y : {round(self.rectangle.eulers[1])}, z : {round(self.rectangle.eulers[2])}")
+            self.drawText(10, 70, f"Translation x : {round(self.rectangle.position[0])}, y : {round(self.rectangle.position[1])}, z : {round(self.rectangle.position[2])}")
+            self.drawText(10, 90, f"Dimension w : {round(self.rectangle.width)}, h : {round(self.rectangle.height)}, d : {round(self.rectangle.depth)}")
+            self.drawText(10, self.window_height-40, f"image loaded: {self.background_path[self.count_background]}")
             
             # --- Update the screen --- #    
             pg.display.flip()
