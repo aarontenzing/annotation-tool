@@ -6,24 +6,50 @@ from rectangle import RectangleMesh
 import os
 
 class Background:
-    def __init__(self, filepath):
-        self.image = pg.image.load(filepath).convert_alpha()
+    def __init__(self, filepath): 
         self.texture = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, self.texture)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        image_data = pg.image.tostring(self.image, "RGBA", 1)
-        self.width, self.height = self.image.get_size()
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self.width, self.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data)
-
-    def use(self):
-        glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D, self.texture)
+        image = pg.image.load(filepath).convert_alpha()
+        image_data = pg.image.tostring(image, "RGBA", 1)
+        self.image_width, self.image_height = image.get_size() # depends on the image loaded
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self.image_width, self.image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data)
     
     def destroy(self):
         glDeleteTextures([self.texture])
+        
+     # Function to render the background
+    def render_background(self, window_width, window_height):
+        
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        gluOrtho2D(0, window_width, 0, window_height)  # Set the orthographic projection
+        
+        glPushMatrix()
+        
+        alpha = 0.8
+        glEnable(GL_TEXTURE_2D)
+        glBindTexture(GL_TEXTURE_2D, self.texture)
+        glBegin(GL_QUADS)
+        
+        glColor4f(1.0, 1.0, 1.0, alpha)  # Set the color with alpha
+        
+        glTexCoord2f(0, 0); glVertex2f(0, 0)  # left bottom
+        glTexCoord2f(0, 1); glVertex2f(0, window_height)  # left top
+        glTexCoord2f(1, 1); glVertex2f(window_width, window_height)  # right top
+        glTexCoord2f(1, 0); glVertex2f(window_width, 0)  # right bottom
+        
+        glEnd()
+        glDisable(GL_TEXTURE_2D)
+        
+        glPopMatrix()
+        
+        glLoadIdentity() # Reset the model-view matrix
+        gluPerspective(45, window_width/window_height, 0.1, 50) # Set the perspective projection
+
 
 class App:
     
@@ -42,7 +68,7 @@ class App:
         if not os.path.exists(self.dir_data):
             os.makedirs(self.dir_data)
         
-        self.background_path = os.path.join(self.dir_data, "IMG_0587.JPG")
+        self.background_path = os.path.join(self.dir_data, "IMG_0588.JPG")
         img_width = pg.image.load(self.background_path).get_width()
         img_height = pg.image.load(self.background_path).get_height()
         print("image size: ", img_width, img_height)
@@ -54,9 +80,9 @@ class App:
         print("the windw will be: ", 5472/i, 3648/i)
         
         self.screen_size_factor=i
-        self.width= 5472/self.screen_size_factor
-        self.height=3648/self.screen_size_factor
-        self.display = (int(self.width), int(self.height))
+        self.window_width= 5472/self.screen_size_factor
+        self.window_height=3648/self.screen_size_factor
+        self.display = (int(self.window_width), int(self.window_height))
         
         self.screen = pg.display.set_mode(self.display, pg.OPENGL | pg.DOUBLEBUF) # tell pygame we run OPENGL & DOUBLEBUFFERING, one frame vis & one drawing
         pg.display.set_caption("Wireframe generator")     
@@ -68,16 +94,18 @@ class App:
         glEnable(GL_DEPTH_TEST)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) # set the blending function
         
+        
         glMatrixMode(GL_PROJECTION) # activate projection matrix
         glLoadIdentity()
-        
 
         gluPerspective(45, self.display[0]/self.display[1], 0.1, 50)
+        glTranslatef(0, 0, -15)
         self.projectionmatrix = glGetDoublev(GL_PROJECTION_MATRIX)
         
         glMatrixMode(GL_MODELVIEW) # activate model view matrix
         glLoadIdentity()
-        gluLookAt(0, 0, 15, 0, 0, 0, 0, 1, 0)
+        
+        # gluLookAt(0, 0, 15, 0, 0, 0, 0, 1, 0)
         
         # draw wired rectangle
         self.rectangle = RectangleMesh(4, 2, 6, [0,0,0], [0,0,0]) 
@@ -96,37 +124,12 @@ class App:
         self.background.destroy()
         pg.quit()
 
-    def drawText(self, x, y, text, color=(255,255,255)):                                                
+    def drawText(self, x, y, text, color=(0,255,0)):                                                
         textSurface = self.font.render(text, True, color).convert_alpha() # text, antialiasing, color
         textData = pg.image.tostring(textSurface, "RGBA", True)
         glWindowPos2d(x, y)
         glDrawPixels(textSurface.get_width(), textSurface.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, textData)
         
-    
-    # Function to render the background
-    def render_background(self):
-        
-        alpha = 0.5
-        self.background.use()
-        
-        glBegin(GL_QUADS)
-        
-        glVertex3f(self.width/2, -self.height/2, 0) # right bottom
-        glColor4f(1.0, 1.0, 1.0, alpha)  # Set the color with alpha
-        glTexCoord2f(1, 1)
-        
-        glVertex3f(self.width/2, self.height/2, 0) # right top
-        glColor4f(1.0, 1.0, 1.0, alpha)  # Set the color with alpha
-        glTexCoord2f(1, 0)
-        
-        glVertex3f(-self.width/2.0, self.height/2.0, 0) # left top
-        glColor4f(1.0, 1.0, 1.0, alpha)  # Set the color with alpha
-        glTexCoord2f(0, 0)
-        
-        glVertex3f(-self.width/2.0, -self.height/2, 0) # left bottom
-        glColor4f(1.0, 1.0, 1.0, alpha)  # Set the color with alpha
-        glTexCoord2f(0, 1)
-        glEnd()
     
     def mainLoop(self):
         
@@ -237,14 +240,16 @@ class App:
             
             if draw:
                 
-                # Render transparent image
-                self.render_background()
-                
-                # Draw wired rectangle
+                # draw wired rectangle
                 self.rectangle.draw_wired_rect()
-
+                
+            if load:
+                
+                # Render background
+                self.background.render_background(self.window_width, self.window_height)
+                
             # --- Text --- #
-            self.drawText(self.width-100, self.height-100, f"Step: {round(step, 1) if step > 0.1 else step}")
+            self.drawText(self.window_width-100, self.window_height-100, f"Step: {round(step, 1) if step > 0.1 else step}")
             self.drawText(150, 50, f"Rotation x : {round(self.rectangle.eulers[0])}, y : {round(self.rectangle.eulers[1])}, z : {round(self.rectangle.eulers[2])}")
             self.drawText(150, 70, f"Translation x : {round(self.rectangle.position[0])}, y : {round(self.rectangle.position[1])}, z : {round(self.rectangle.position[2])}")
             self.drawText(150, 90, f"Dimension w : {round(self.rectangle.width)}, h : {round(self.rectangle.height)}, d : {round(self.rectangle.depth)}")
