@@ -55,54 +55,42 @@ class App:
     
     def __init__(self):
         
-        # initialize pygame for GUI
+        # -- initialize pygame for GUI --
         pg.init() 
-        screen_info = pg.display.Info()
-        print(screen_info.current_w, screen_info.current_h)
+        self.screen_info = pg.display.Info()
+        print(self.screen_info.current_w, self.screen_info.current_h)
         
-        # get the base directory
+        # -- Read backgrounds from data/ --
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         self.dir_data = os.path.join(BASE_DIR, 'data')
-                
-        # Check if the directory exists, if not create it
+        
         if not os.path.exists(self.dir_data):
             os.makedirs(self.dir_data)
         
-        self.background_path = [] # list of background images in dir data/
+        self.background_path = [] # list of background images 
         
         for file in os.listdir(self.dir_data):
-            if file.endswith(".jpg") or file.endswith(".JPG"):
+            if file.endswith(".jpg") or file.endswith(".JPG") or file.endswith(".png") or file.endswith(".PNG"):
                 self.background_path.append(os.path.join(self.dir_data, file))
         
         print("background path: ", self.background_path[0])
         self.count_background = 0
-               
+
         img_width = pg.image.load(self.background_path[0]).get_width()
         img_height = pg.image.load(self.background_path[0]).get_height()
         print("image size: ", img_width, img_height)
         
-        i=1
-        while (img_width / i) > screen_info.current_w or (img_height / i) > screen_info.current_h:
-            i+=1
-        print("scale is ", i)
-        print("the windw will be: ", img_width/i, img_height/i)
-        
-        self.screen_size_factor=i
-        self.window_width= img_width/self.screen_size_factor
-        self.window_height=img_height/self.screen_size_factor
-        
-        self.display = (int(self.window_width), int(self.window_height))
-        
-        self.screen = pg.display.set_mode(self.display, pg.OPENGL | pg.DOUBLEBUF) # tell pygame we run OPENGL & DOUBLEBUFFERING, one frame vis & one drawing
+        # -- Creating window with appropriate size --
+        scale = self.calculateWindowRatio(img_width, img_height)
+        self.changeWindowSize(scale, img_width, img_height)
         pg.display.set_caption("Annotation Tool 3D")     
      
-        # initialize OpenGL
+        # -- Initialize OpenGL --
         glClearColor(0,0,0,1) # set the color of the background
     
         glEnable(GL_BLEND) # enable blending
         glEnable(GL_DEPTH_TEST)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) # set the blending function
-        
         
         glMatrixMode(GL_PROJECTION) # activate projection matrix
         glLoadIdentity()
@@ -116,22 +104,24 @@ class App:
         
         # gluLookAt(0, 0, 15, 0, 0, 0, 0, 1, 0)
         
-        # draw wired rectangle
+        # -- Draw wired rectangle --
         self.rectangle = RectangleMesh(4, 2, 6, [0,0,0], [0,0,0]) 
         self.rectangle.draw_wired_rect()
         
-        # Background
+        # -- Setting background --
         self.background = Background(self.background_path[0])
         
-        # Text
+        # -- Text --
         self.font = pg.font.Font(None, 24)
         
-        # Main loop
+        # -- Main loop --
         self.mainLoop()
+ 
     
     def quit(self):
         self.background.destroy()
         pg.quit()
+
 
     def drawText(self, x, y, text, color=(0,255,0)):                                                
         textSurface = self.font.render(text, True, color).convert_alpha() # text, antialiasing, color
@@ -139,8 +129,29 @@ class App:
         glWindowPos2d(x, y)
         glDrawPixels(textSurface.get_width(), textSurface.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, textData)
 
+
+    def calculateWindowRatio(self, img_width : int, img_height : int) -> int:
+        scale = 1
+        print(img_width, img_height)
+        while (img_width/scale) > 1920 or (img_height/scale) > 1080:
+            scale += 1
+        return scale
+
+
+    def changeWindowSize(self, ratio : int, background_width, background_height):
+        print("new ratio: ", ratio)
+        self.screen_size_factor = ratio
+        self.window_width = background_width/ratio
+        self.window_height = background_height/ratio
+        self.display = (int(self.window_width), int(self.window_height))
+        print("change window size: ", self.screen_size_factor, self.display)
+        self.screen = pg.display.set_mode(self.display, pg.OPENGL | pg.DOUBLEBUF) # tell pygame we run OPENGL & DOUBLEBUFFERING, one frame vis & one drawing
+
+
     def new_background(self, select):
+        
         # Destroy the current background object
+        shape = (self.background.image_width, self.background.image_height) # get the size of the current background image
         self.background.destroy()
         del self.background
         
@@ -151,7 +162,17 @@ class App:
             self.count_background = (self.count_background - 1) % len(self.background_path)
 
         # Create the new background object based on the new index
-        self.background = Background(self.background_path[self.count_background])
+        new_back = pg.image.load(self.background_path[self.count_background])
+        img_width, img_height = new_back.get_size()
+        
+        # different image dimensions -> calculate new window
+        if (shape != (img_width, img_height)):
+            self.changeWindowSize(self.calculateWindowRatio(img_width, img_height), img_width, img_height)
+            self.background = Background(self.background_path[self.count_background])
+            print(f"new window dimensions, {self.window_width, self.window_height}")
+        else:
+            # create back
+            self.background = Background(self.background_path[self.count_background])
         
     
     def mainLoop(self):
@@ -283,7 +304,7 @@ class App:
             self.drawText(self.window_width-100, self.window_height-100, f"Step: {round(step, 1) if step > 0.1 else step}")
             self.drawText(10, 50, f"Rotation x : {round(self.rectangle.eulers[0])}, y : {round(self.rectangle.eulers[1])}, z : {round(self.rectangle.eulers[2])}")
             self.drawText(10, 70, f"Translation x : {round(self.rectangle.position[0])}, y : {round(self.rectangle.position[1])}, z : {round(self.rectangle.position[2])}")
-            self.drawText(10, 90, f"Dimension w : {round(self.rectangle.width)}, h : {round(self.rectangle.height)}, d : {round(self.rectangle.depth)}")
+            self.drawText(10, 90, f"Dimension w : {self.rectangle.width}, h : {self.rectangle.height}, d : {self.rectangle.depth}")
             self.drawText(10, self.window_height-40, f"image loaded: {self.background_path[self.count_background]}")
             
             # --- Update the screen --- #    
