@@ -96,23 +96,7 @@ class RectangleMesh:
         elif (direction == 'z'):
             self.eulers[2] += step 
 
-    def dimension(self, direction, step=1):
-            
-            if (direction == 'reset'):
-                self.width = 1
-                self.height = 1
-                self.depth = 1
-            
-            elif (direction == 'w'):
-                self.width += step
-                
-            elif (direction == 'h'):
-                self.height += step
-                
-            elif (direction == 'd'):
-                self.depth += step
-            
-            self.set_vertices(self.width, self.height, self.depth)
+      
     
     def draw_wired_rect(self):
         
