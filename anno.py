@@ -4,6 +4,7 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 from rectangle import RectangleMesh
 import os
+from handle_json import *
 
 class Background:
     def __init__(self, filepath): 
@@ -24,32 +25,37 @@ class Background:
      # Function to render the background
     def render_background(self, window_width, window_height):
         
-        glMatrixMode(GL_PROJECTION)
-        glLoadIdentity()
-        gluOrtho2D(0, window_width, 0, window_height)  # Set the orthographic projection
-        
+        # Save the current matrix state
         glPushMatrix()
         
+        # Switch to the projection matrix mode and set up the orthographic projection
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()  # Reset the projection
+        gluOrtho2D(0, window_width, 0, window_height)  # Set the orthographic projection
+        
+        # Switch back to the model-view matrix mode
+        glMatrixMode(GL_MODELVIEW)
+        
+        # Render the background
         alpha = 0.8
         glEnable(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, self.texture)
         glBegin(GL_QUADS)
-        
         glColor4f(1.0, 1.0, 1.0, alpha)  # Set the color with alpha
-        
         glTexCoord2f(0, 0); glVertex2f(0, 0)  # left bottom
         glTexCoord2f(0, 1); glVertex2f(0, window_height)  # left top
         glTexCoord2f(1, 1); glVertex2f(window_width, window_height)  # right top
         glTexCoord2f(1, 0); glVertex2f(window_width, 0)  # right bottom
-        
         glEnd()
         glDisable(GL_TEXTURE_2D)
         
+        # Restore the previous matrix state
         glPopMatrix()
         
-        glLoadIdentity() # Reset the model-view matrix
-        gluPerspective(45, window_width/window_height, 0.1, 50) # Set the perspective projection
-
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        gluPerspective(45, window_width/window_height, 0.1, 100) # Set the perspective projection
+        
 
 class App:
     
@@ -68,9 +74,11 @@ class App:
             os.makedirs(self.dir_data)
         
         self.background_path = [] # list of background images 
+        self.image_name = []
         
         for file in os.listdir(self.dir_data):
             if file.endswith(".jpg") or file.endswith(".JPG") or file.endswith(".png") or file.endswith(".PNG"):
+                self.image_name.append(file)
                 self.background_path.append(os.path.join(self.dir_data, file))
         
         print("background path: ", self.background_path[0])
@@ -84,7 +92,7 @@ class App:
         scale = self.calculateWindowRatio(img_width, img_height)
         self.changeWindowSize(scale, img_width, img_height)
         pg.display.set_caption("Annotation Tool 3D")     
-     
+
         # -- Initialize OpenGL --
         glClearColor(0,0,0,1) # set the color of the background
     
@@ -92,24 +100,26 @@ class App:
         glEnable(GL_DEPTH_TEST)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) # set the blending function
         
-        glMatrixMode(GL_PROJECTION) # activate projection matrix
+        # -- Projection matrix --
+        glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-
-        gluPerspective(45, self.display[0]/self.display[1], 0.1, 50)
-        glTranslatef(0, 0, -15)
-        self.projectionmatrix = glGetDoublev(GL_PROJECTION_MATRIX)
-        
-        glMatrixMode(GL_MODELVIEW) # activate model view matrix
-        glLoadIdentity()
-        
+        gluPerspective(45, self.display[0]/self.display[1], 0.1, 100)
+        glTranslatef(0.0,0.0, -15)
         # gluLookAt(0, 0, 15, 0, 0, 0, 0, 1, 0)
+        self.projectionmatrix = glGetDoublev(GL_PROJECTION_MATRIX)
+        print("Initial PJM: \n",self.projectionmatrix)
         
-        # -- Draw wired rectangle --
-        self.rectangle = RectangleMesh(4, 2, 6, [0,0,0], [0,0,0]) 
-        self.rectangle.draw_wired_rect()
+        # - Modelview matrix --
+        glMatrixMode(GL_MODELVIEW) 
+        glLoadIdentity()
         
         # -- Setting background --
         self.background = Background(self.background_path[0])
+        
+        
+        # -- Draw wired rectangle --
+        self.rectangle = RectangleMesh(30.5, 13, 23, [0,0,0], [0,0,0]) 
+        self.rectangle.draw_wired_rect()
         
         # -- Text --
         self.font = pg.font.Font(None, 24)
@@ -173,8 +183,61 @@ class App:
         else:
             # create back
             self.background = Background(self.background_path[self.count_background])
+
+
+    def get_annotations(self, model_view, projection, viewport):
+        # Calculate world and pixel coordinates of vertices rectangle
+        world_coordinates = []
+        pixel_coordinates = []
         
-    
+        for vertex in self.rectangle.vertices:
+            x_screen, y_screen, _ =  gluProject(vertex[0], vertex[1], vertex[2], model_view, projection, viewport)
+            pixel_coordinates.append((int(x_screen),int(y_screen)))
+            x_world, y_world, z_world = gluUnProject( x_screen, y_screen, 0, model_view, projection, viewport)
+            world_coordinates.append((x_world, y_world, z_world))
+        
+        # Calculate center
+        x_screen, y_screen, _ = gluProject(0, 0, 0, model_view, projection, viewport)
+        x_world, y_world, z_world = gluUnProject( x_screen, y_screen, 0, model_view, projection, viewport)
+        world_coordinates.append((x_world, y_world, z_world))
+        pixel_coordinates.append((int(x_screen), int(y_screen)))
+        
+        print(self.screen_size_factor)
+        pixel_coordinates = [(x*self.screen_size_factor, y*self.screen_size_factor) for x,y in pixel_coordinates]
+        
+        print("pixel coordinates: ", pixel_coordinates)
+        print("world coordinates: ", world_coordinates)
+        
+        return world_coordinates, pixel_coordinates
+             
+
+    def draw_axis(self):
+        
+        glPushMatrix()
+        glTranslatef(0,0,-15)
+        # X axis (red)
+        glBegin(GL_LINES)
+        glColor3f(1, 0, 0)
+        glVertex3f(0, 0, 0)
+        glVertex3f(5, 0, 0)
+        glEnd()
+
+        # Y axis (green)
+        glBegin(GL_LINES)
+        glColor3f(0, 1, 0)
+        glVertex3f(0, 0, 0)
+        glVertex3f(0, 5, 0)
+        glEnd()
+
+        # Z axis (blue)
+        glBegin(GL_LINES)
+        glColor3f(0, 0, 1)
+        glVertex3f(0, 0, 0)
+        glVertex3f(0, 0, 5)
+        glEnd()   
+        glPopMatrix()  
+
+
     def mainLoop(self):
         
         draw = True
@@ -194,8 +257,19 @@ class App:
                 # key pressed
                 if (event.type == pg.KEYDOWN):
                     
+                    if (event.key == pg.K_i):
+                        print("current PJM: \n", glGetDoublev(GL_PROJECTION_MATRIX))
+                        print("current MVM: \n", self.rectangle.modelview)
+                    
+                    if (event.key == K_SPACE):
+                        step = 10
+                        
                     if (event.key == pg.K_e):
                         draw = not draw
+                    
+                    if (event.key == pg.K_a):
+                        wc, pc = self.get_annotations(self.rectangle.modelview, glGetDoublev(GL_PROJECTION_MATRIX), glGetIntegerv(GL_VIEWPORT)) # world coordinates and pixel coordinates
+                        write_json(self.image_name[self.count_background],wc, pc)
                     
                     if (event.key == pg.K_s):
                         if (event.mod & pg.KMOD_CAPS or event.mod & pg.KMOD_SHIFT):
@@ -217,10 +291,6 @@ class App:
                         else:
                             self.rectangle.translate('reset')    
                     
-                    if (event.key == pg.K_1):
-                        self.rectangle.dimension('reset')
-                        print("reset dimension (1, 1, 1)") 
-                    
                     if (event.key == pg.K_n):
                         self.new_background("next")
                         print("next background")
@@ -229,25 +299,7 @@ class App:
                         self.new_background("previous")
                         print("previous background")
                      
-                    # Dimension
-                    if (event.key == pg.K_w):
-                        if (event.mod & pg.KMOD_CAPS or event.mod & pg.KMOD_SHIFT):
-                            self.rectangle.dimension('w', -step)
-                        else:
-                            self.rectangle.dimension('w', step)
-                    if (event.key == pg.K_h):
-                        if (event.mod & pg.KMOD_CAPS or event.mod & pg.KMOD_SHIFT):
-                            self.rectangle.dimension('h', -step)
-                        else:
-                            self.rectangle.dimension('h', step)
-                    
-                    if (event.key == pg.K_d):
-                        if (event.mod & pg.KMOD_CAPS or event.mod & pg.KMOD_SHIFT):
-                            self.rectangle.dimension('d', -step)
-                        else:
-                            self.rectangle.dimension('d', step)
-                                           
-                    
+                        
                     # Translation
                     if (event.key == pg.K_UP):
                         self.rectangle.translate('up', step)
@@ -289,14 +341,12 @@ class App:
 
             # --- Drawing the scene --- #
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-            
-            if draw:
-                
+            self.draw_axis()
+            if draw:    
                 # draw wired rectangle
                 self.rectangle.draw_wired_rect()
                 
             if load:
-                
                 # Render background
                 self.background.render_background(self.window_width, self.window_height)
                 
@@ -305,7 +355,7 @@ class App:
             self.drawText(10, 50, f"Rotation x : {round(self.rectangle.eulers[0])}, y : {round(self.rectangle.eulers[1])}, z : {round(self.rectangle.eulers[2])}")
             self.drawText(10, 70, f"Translation x : {round(self.rectangle.position[0])}, y : {round(self.rectangle.position[1])}, z : {round(self.rectangle.position[2])}")
             self.drawText(10, 90, f"Dimension w : {self.rectangle.width}, h : {self.rectangle.height}, d : {self.rectangle.depth}")
-            self.drawText(10, self.window_height-40, f"image loaded: {self.background_path[self.count_background]}")
+            self.drawText(10, self.window_height-40, f"image loaded: {self.image_name[self.count_background]}")
             
             # --- Update the screen --- #    
             pg.display.flip()
