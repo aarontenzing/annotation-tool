@@ -354,7 +354,7 @@ class App:
             self.drawText(self.window_width-100, self.window_height-100, f"Step: {round(step, 1) if step > 0.1 else step}")
             self.drawText(10, 50, f"Rotation x : {round(self.rectangle.eulers[0])}, y : {round(self.rectangle.eulers[1])}, z : {round(self.rectangle.eulers[2])}")
             self.drawText(10, 70, f"Translation x : {round(self.rectangle.position[0])}, y : {round(self.rectangle.position[1])}, z : {round(self.rectangle.position[2])}")
-            self.drawText(10, 90, f"Dimension w : {self.rectangle.width}, h : {self.rectangle.height}, d : {self.rectangle.depth}")
+            self.drawText(10, 90, f"Dimension w : {self.rectangle.width*2}, h : {self.rectangle.height*2}, d : {self.rectangle.depth*2}")
             self.drawText(10, self.window_height-40, f"image loaded: {self.image_name[self.count_background]}")
             
             # --- Update the screen --- #    
