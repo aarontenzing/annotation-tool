@@ -55,6 +55,7 @@ class Background:
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         gluPerspective(45, window_width/window_height, 0.1, 100) # Set the perspective projection
+        glTranslatef(0.0,0.0, -63)
         
 
 class App:
