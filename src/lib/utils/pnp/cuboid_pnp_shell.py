@@ -90,4 +90,4 @@ def pnp_shell(opt, meta, bbox, points_filtered, scale, OPENCV_RETURN = False):
         # keypoint_2d_pnp, keypoint_3d, predicted_scale, keypoint_2d_ori, result_ori for debug
         return projected_points, point_3d_cam, np.array(bbox['obj_scale']), points_ori, bbox
 
-    return
+    return None, None, None, None, None

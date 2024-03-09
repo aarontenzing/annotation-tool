@@ -10,11 +10,10 @@ from src.lib.utils.pnp.cuboid_pnp_shell import pnp_shell
 
 # Load the camera matrix
 def load_camera_matrix():
-    with open('cameraMatrix.pkl', 'rb') as f:
-        cameraMatrix = pickle.load(f)
-    print(cameraMatrix)
-    # cameraMatrix = np.array([[3456, 0, 2304],[0,3456,1728], [0, 0, 1]], dtype=np.float32)
-    cameraMatrix = np.array([[1152, 0, 432],[0,1152,576], [0, 0, 1]], dtype=np.float32)
+    # with open('cameraMatrix.pkl', 'rb') as f:
+        # cameraMatrix = pickle.load(f)
+    # print(cameraMatrix)
+    cameraMatrix = np.array([[3456, 0, 2304],[0,3456,1728], [0, 0, 1]], dtype=np.float32)
 
     return cameraMatrix
 
@@ -42,10 +41,10 @@ def calculate_cuboid(meta, bbox, points, size):
     opt.obj_scale = True   
     opt.c = "cereal_box" 
     return pnp_shell(opt, meta, bbox, points, size, OPENCV_RETURN=False)
-    
 
 
 if __name__== "__main__":
+    
     # Global variable to store points
     points = []
     image_vertices = []
@@ -56,13 +55,17 @@ if __name__== "__main__":
 
     # Read an image
     images = glob.glob('data\\*.jpg')
+    
     image = cv2.imread(images[0])
+    
     image_w, image_h = image.shape[1], image.shape[0]
+    print("Image shape: ", image.shape)
+    
     scaling = calculateWindowRatio(image_w, image_h)
+    
     w = int(image_w / scaling)
     h = int(image_h / scaling)
     image = cv2.resize(image, (w, h))
-    print(image.shape)
 
 
     # Create a window and bind the mouse callback function
@@ -101,6 +104,7 @@ if __name__== "__main__":
         size = [38, 27, 25.5]
         camera = np.array(cameraMatrix, dtype=np.float32)
         meta = {"width": image_w,"height": image_h, "camera_matrix":camera}
+        print("image_w and image_h: ", image_w, image_h)
         bbox = {'kps': image_vertices[0], "obj_scale": size}
         projected_points, point_3d_cam, scale, points_ori, bbox = calculate_cuboid(meta, bbox, image_vertices[0], size)
     
