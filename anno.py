@@ -55,7 +55,7 @@ class Background:
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         gluPerspective(45, window_width/window_height, 0.1, 100) # Set the perspective projection
-        glTranslatef(0.0,0.0, -63)
+        glTranslatef(0.0,0.0, -60)
         
 
 class App:
@@ -105,7 +105,7 @@ class App:
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         gluPerspective(45, self.display[0]/self.display[1], 0.1, 100)
-        glTranslatef(0.0,0.0, -15)
+        # glTranslatef(0.0,0.0, -50)
         # gluLookAt(0, 0, 15, 0, 0, 0, 0, 1, 0)
         self.projectionmatrix = glGetDoublev(GL_PROJECTION_MATRIX)
         print("Initial PJM: \n",self.projectionmatrix)
@@ -117,9 +117,8 @@ class App:
         # -- Setting background --
         self.background = Background(self.background_path[0])
         
-        
         # -- Draw wired rectangle --
-        self.rectangle = RectangleMesh(30.5, 13, 23, [0,0,0], [0,0,0]) 
+        self.rectangle = RectangleMesh(38, 27, 25.5, [0,0,0], [0,0,0])
         self.rectangle.draw_wired_rect()
         
         # -- Text --
@@ -159,8 +158,8 @@ class App:
         self.screen = pg.display.set_mode(self.display, pg.OPENGL | pg.DOUBLEBUF) # tell pygame we run OPENGL & DOUBLEBUFFERING, one frame vis & one drawing
 
 
-    def new_background(self, select):
-        
+    def new_background(self, select): # select = "next" or "previous"
+
         # Destroy the current background object
         shape = (self.background.image_width, self.background.image_height) # get the size of the current background image
         self.background.destroy()
@@ -242,7 +241,7 @@ class App:
     def mainLoop(self):
         
         draw = True
-        load = False
+        load = True
         step = 1
         
         running = True
