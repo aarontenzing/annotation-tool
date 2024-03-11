@@ -2,9 +2,11 @@ import cv2
 import numpy as np
 import glob
 from pprint import pprint
+import pickle 
 
 from src.lib.opts import opts
 from src.lib.utils.pnp.cuboid_pnp_shell import pnp_shell    
+from handle_json import write_json, read_json, clear_json
 
 class quick_annotate:
     def __init__(self, path = None, screen_size = (1920, 1080), boxSize=None):
@@ -55,7 +57,9 @@ class quick_annotate:
         return image_w, image_h, w, h
     
     def load_camera_matrix(self):
-        cameraMatrix = np.array([[3456, 0, 2304],[0,3456,1728], [0, 0, 1]], dtype=np.float32)
+        # cameraMatrix = np.array([[3456, 0, 2304],[0,3456,1728], [0, 0, 1]], dtype=np.float32)
+        cameraMatrix = pickle.load(open("cameraMatrix.pkl", "rb"))
+        print("cameraMatrix:\n", cameraMatrix)
         return cameraMatrix
 
     def calculate_cuboid(self, meta, bbox, points, size): 
@@ -113,18 +117,24 @@ class quick_annotate:
                     camera = self.load_camera_matrix()
                     meta = {"width": self.image_w,"height": self.image_h, "camera_matrix":camera}
                     bbox = {'kps': self.vertices, "obj_scale": self.boxSize}
-                    projected_points, _, _, _, bbox = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
+                    projected_points, point_3d_cam, _, _, bbox = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
+                    
                     pprint(bbox)
+                    print(len(projected_points))
+                    # draw the cuboid
                     if len(projected_points) != 0:
                         print("draw estimation!")
-                        # self.draw_cuboid(bbox["projected_cuboid"])
                         _,_,w,h = self.calculateWindow(self.image)
                         self.image = cv2.imread(self.images[self.idx])
-                        for coordinate in bbox["projected_cuboid"]:
-                            x, y = int(coordinate[0]), int(coordinate[1])
-                            cv2.circle(self.image, (x, y), 15, (0, 255, 0), -1)  # Draw a filled circle at each point
+                        self.draw_cuboid(bbox["projected_cuboid"])
                         self.image = cv2.resize(self.image, (w, h))
+                        print("writing to file")
+                        # write to file
+                        projected_points = bbox["projected_cuboid"].tolist()
+                        point_3d_cam = point_3d_cam.tolist()
                         
+                        write_json("pnp_anno.json", self.images[self.idx], point_3d_cam, projected_points)
+                                                
                     else:
                         print("Wrong order of points selected.")    
                     
@@ -134,11 +144,8 @@ class quick_annotate:
             
             elif key == ord('r'):
                 self.reset_image(self.images[self.idx])
-
-            elif key == ord('w'):
-                print("write to file")
-                
-            
+             
+                    
             elif key == ord('n'):
                 
                 self.idx += 1
@@ -148,7 +155,7 @@ class quick_annotate:
                 self.image = cv2.imread(self.images[self.idx])
                 _, _, w, h = self.calculateWindow(self.image)
                 self.image = cv2.resize(self.image, (w, h))
-                self.points = []
+                self.vertices = []
                 
             elif key == ord('q'):
                 break
@@ -161,7 +168,6 @@ class quick_annotate:
 if __name__ == "__main__":
     qa = quick_annotate(boxSize=[38, 27, 25.5])
     qa.run()
-    cv2.destroyAllWindows()
 
         
                 

@@ -270,7 +270,7 @@ class App:
                     
                     if (event.key == pg.K_a):
                         wc, pc = self.get_annotations(self.rectangle.modelview, glGetDoublev(GL_PROJECTION_MATRIX), glGetIntegerv(GL_VIEWPORT)) # world coordinates and pixel coordinates
-                        write_json(self.image_name[self.count_background],wc, pc)
+                        write_json("annotations.json",self.image_name[self.count_background],wc, pc)
                     
                     if (event.key == pg.K_s):
                         if (event.mod & pg.KMOD_CAPS or event.mod & pg.KMOD_SHIFT):
@@ -364,5 +364,6 @@ class App:
         
 
 if __name__ == "__main__":
+    
     app = App()
     

@@ -1,8 +1,6 @@
 import json
 
-filepath = "annotations.json"
-
-def write_json(img, world_coordinates, projection_coordinates):
+def write_json(filepath, img, world_coordinates, projection_coordinates):
     print("write!")
     # data written to csv
     data = {
@@ -23,7 +21,7 @@ def write_json(img, world_coordinates, projection_coordinates):
     with open(filepath, 'w') as file:
         json.dump(file_data, file, indent=2) # dict to array (json)   
         
-def read_json():
+def read_json(filepath):
     
     try:
         with open(filepath, 'r') as file:
@@ -36,7 +34,7 @@ def read_json():
         print(f"Error: Unable to decode JSON data from file '{filepath}'.")
         return {}
 
-def clear_json():
+def clear_json(filepath):
     # clear the json file 
     with open(filepath, "w") as file:
         file.truncate()
