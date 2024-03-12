@@ -3,10 +3,32 @@ import numpy as np
 import glob
 from pprint import pprint
 import pickle 
+import json
 
 from src.lib.opts import opts
 from src.lib.utils.pnp.cuboid_pnp_shell import pnp_shell    
-from handle_json import write_json, read_json, clear_json
+from src.tools.objectron_eval.objectron.dataset.box import Box as boxEstimation
+
+
+def write_json(filepath, img, world_coordinates, projection_coordinates):
+    # data written to csv
+    data = {
+                "img_name" : img,
+                "orientation" : world_coordinates,
+                "translation" : projection_coordinates,
+            }
+    
+    with open(filepath, "r") as file:
+        try:
+            file_data = json.load(file) # file content to python list
+        except json.decoder.JSONDecodeError:
+                file_data = []
+                print("file empty")
+    
+    file_data.append(data) 
+    
+    with open(filepath, 'w') as file:
+        json.dump(file_data, file, indent=2) # dict to array (json)   
 
 class quick_annotate:
     def __init__(self, path = None, screen_size = (1920, 1080), boxSize=None):
@@ -35,7 +57,7 @@ class quick_annotate:
         print("Original image shape: ", (self.image.shape[1], self.image.shape[0]))
         
         # Resize the image  
-        _, _, w, h = self.calculateWindow(self.image)
+        w, h = self.calculateWindow(self.image)
         self.image = cv2.resize(self.image, (w, h))
         
         print("scaling factor: ", self.scaling)
@@ -44,17 +66,17 @@ class quick_annotate:
     
     def calculateWindow(self, image):
         # downscale the image to a size that is manageable
-        image_w, image_h = image.shape[1], image.shape[0]
+        self.image_h = image.shape[0]
+        self.image_w = image.shape[1]
         scale = 1
-        while (image_w/scale) > self.screen_size[1] or (image_h/scale) > self.screen_size[0]:
+        while (self.image_w/scale) > self.screen_size[1] or (self.image_h/scale) > self.screen_size[0]:
             scale += 1
+            
         self.scaling = scale
-        image_w = self.image.shape[1]
-        image_h = self.image.shape[0]
-        w = int(image_w / scale)
-        h = int(image_h / scale)
+        w = int(self.image_w / scale)
+        h = int(self.image_h / scale)
         
-        return image_w, image_h, w, h
+        return w, h
     
     def load_camera_matrix(self):
         # cameraMatrix = np.array([[3456, 0, 2304],[0,3456,1728], [0, 0, 1]], dtype=np.float32)
@@ -82,12 +104,10 @@ class quick_annotate:
 
     def reset_image(self, image_path):
         self.image = cv2.imread(image_path)
-        image_w, image_h, w, h = self.calculateWindow(self.image)
-        self.image_w = image_w
-        self.image_h = image_h
+        w, h = self.calculateWindow(self.image)
         self.image = cv2.resize(self.image, (w, h))
         self.vertices = []       
-        
+         
 
     def run(self):
         
@@ -109,7 +129,7 @@ class quick_annotate:
                     self.vertices = np.array(self.vertices, dtype=np.float64)
                     self.vertices *= self.scaling
                     self.vertices = self.vertices.astype(int)
-                    
+                                        
                     # pnp 
                     if self.boxSize is None:
                         self.boxSize = input("Enter the size of the object [width, height, depth]: ")
@@ -117,34 +137,42 @@ class quick_annotate:
                     camera = self.load_camera_matrix()
                     meta = {"width": self.image_w,"height": self.image_h, "camera_matrix":camera}
                     bbox = {'kps': self.vertices, "obj_scale": self.boxSize}
-                    projected_points, point_3d_cam, _, _, bbox = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
+                    projected_points, point_3d_cam, scale, _, bbox = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
                     
                     pprint(bbox)
-                    print(len(projected_points))
+    
                     # draw the cuboid
-                    if len(projected_points) != 0:
-                        print("draw estimation!")
-                        _,_,w,h = self.calculateWindow(self.image)
-                        self.image = cv2.imread(self.images[self.idx])
-                        self.draw_cuboid(bbox["projected_cuboid"])
-                        self.image = cv2.resize(self.image, (w, h))
-                        print("writing to file")
-                        # write to file
-                        projected_points = bbox["projected_cuboid"].tolist()
-                        point_3d_cam = point_3d_cam.tolist()
-                        
-                        write_json("pnp_anno.json", self.images[self.idx], point_3d_cam, projected_points)
-                                                
-                    else:
-                        print("Wrong order of points selected.")    
-                    
+                    print("draw estimation!")
+                    self.image = cv2.imread(self.images[self.idx])
+                    self.draw_cuboid(bbox["projected_cuboid"])
+                    self.image = cv2.resize(self.image, (int(self.image_w/self.scaling), int(self.image_h/self.scaling))) # resize the image      
+      
                 else:
                     print("Please select 8 vertices: ", self.vertices)
                     self.reset_image(self.images[self.idx])
             
+            elif key == ord("s"):
+                if (len(projected_points) > 0):
+                    print("saved annotation!")
+                    # calculate the rotation and translation matrix
+                    box = boxEstimation(bbox["kps_3d_cam"])
+                    orientation, translation, scale = box.fit(bbox["kps_3d_cam"])
+                    orientation = orientation.tolist()
+                    translation = translation.tolist()
+                    
+                    # print("orientation: ", orientation)
+                    # print("translation: ", translation)
+                    # print("scale (normalised): ", scale)
+
+                    # projected_points = bbox["projected_cuboid"].tolist()
+                    # point_3d_cam = point_3d_cam.tolist()
+                    write_json("pnp_anno.json", self.images[self.idx], orientation, translation)
+                    self.reset_image(self.images[self.idx])
+                projected_points = [] 
+                
+            
             elif key == ord('r'):
-                self.reset_image(self.images[self.idx])
-             
+                self.reset_image(self.images[self.idx])  
                     
             elif key == ord('n'):
                 
@@ -152,10 +180,7 @@ class quick_annotate:
                 if self.idx >= len(self.images):
                     self.idx = 0
                 
-                self.image = cv2.imread(self.images[self.idx])
-                _, _, w, h = self.calculateWindow(self.image)
-                self.image = cv2.resize(self.image, (w, h))
-                self.vertices = []
+                self.reset_image(self.images[self.idx])
                 
             elif key == ord('q'):
                 break
@@ -166,6 +191,12 @@ class quick_annotate:
         
         
 if __name__ == "__main__":
+    # Always use appropriate boxSize for the object
+    
+    # click 'a' to annotate the object and 'n' to move to the next image
+    # click 'r' to reset the image
+    # click 'q' to quit the program
+
     qa = quick_annotate(boxSize=[38, 27, 25.5])
     qa.run()
 
