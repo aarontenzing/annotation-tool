@@ -295,14 +295,21 @@ class App:
                         if load:
                             print(self.image_name[self.count_background])
                             data = read_json("pnp_anno.json")
-                            self.orientation_matrix = self.rectangle.RotMult_matrix()
-                            self.rectangle.draw_wired_rect(self.orientation_matrix)
+                            
                             for item in data:
                                 if item["img_name"] == ("data\\" + self.image_name[self.count_background]):
-                                    print("annotations loaded!")
-                                    print("world cord: ",item["world"])
-                            
+                                    # print("annotations loaded!")
+                                    print("world cord: ",item["orientation"])
+                                    orientation = item["orientation"]    
                                     break
+                            if (orientation is None):
+                                print("not quick_annotated yet")
+                            
+                            # Create orientation matrix
+                            self.orientation_matrix = self.rectangle.RotMult_matrix(orientation)
+                            # Apply the orientation matrix
+                            self.rectangle.draw_wired_rect(self.orientation_matrix)  
+                                
                         else:
                             print("No annotations found.")
                     

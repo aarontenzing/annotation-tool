@@ -16,14 +16,14 @@ class RectangleMesh:
         
         # Cube vertices and edges
         self.vertices = (
-            (self.width,  self.height,  self.depth),
-            (-self.width, self.height, self.depth),
-            (-self.width, -self.height, self.depth),
-            (self.width, -self.height, self.depth),
-            (self.width, self.height, -self.depth),
-            (-self.width, self.height, -self.depth),
-            (-self.width, -self.height, -self.depth),
-            (self.width, -self.height, -self.depth)
+            (self.width,  self.height,  self.depth), # top right back
+            (-self.width, self.height, self.depth), # top left back
+            (-self.width, -self.height, self.depth), # bottom left back
+            (self.width, -self.height, self.depth), # bottom right back
+            (self.width, self.height, -self.depth), # top right front
+            (-self.width, self.height, -self.depth), # top left front
+            (-self.width, -self.height, -self.depth), # bottom left front
+            (self.width, -self.height, -self.depth) # bottom right front
         )
 
         self.edges = (
@@ -98,18 +98,22 @@ class RectangleMesh:
 
       
     
-    def draw_wired_rect(self):
+    def draw_wired_rect(self, orientation_matrix=None):
         
         glMatrixMode(GL_MODELVIEW)
         
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        
         glPushMatrix() 
+        glLoadIdentity()
     
         glTranslatef(self.position[0], self.position[1], self.position[2])
-        glRotatef(self.eulers[0], 1, 0, 0)
-        glRotatef(self.eulers[1], 0, 1, 0)
-        glRotatef(self.eulers[2], 0, 0, 1) 
+        
+        if orientation_matrix is None:
+            glRotatef(self.eulers[0], 1, 0, 0)
+            glRotatef(self.eulers[1], 0, 1, 0)
+            glRotatef(self.eulers[2], 0, 0, 1) 
+        
+        else:
+            glMultMatrixf(orientation_matrix)
         
         glEnable(GL_LINE_SMOOTH)  # Enable line smoothing
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)  # Use the highest quality for line smoothing
@@ -125,6 +129,16 @@ class RectangleMesh:
         self.modelview = glGetDoublev(GL_MODELVIEW_MATRIX) # save the modelview matrix 
         
         glPopMatrix()
+
+    # Given a matrix, function will transform to matrix for OpenGL
+    def RotMult_matrix(self, matrix):  
+        identity_matrix = np.eye(4)
+        identity_matrix[:3, :3] = matrix
+        flattend_matrix = identity_matrix.flatten()
+        # glLoadMatrixf(flattend_matrix)
+        return flattend_matrix
+        
+
 
     def get_norm_dim(self):
         # normalize dimensions

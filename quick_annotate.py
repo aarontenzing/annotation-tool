@@ -9,13 +9,11 @@ from src.lib.opts import opts
 from src.lib.utils.pnp.cuboid_pnp_shell import pnp_shell    
 from src.tools.objectron_eval.objectron.dataset.box import Box as boxEstimation
 
-
-def write_json(filepath, img, world_coordinates, projection_coordinates):
+def write_json(filepath, img, orientation):
     # data written to csv
     data = {
                 "img_name" : img,
-                "orientation" : world_coordinates,
-                "translation" : projection_coordinates,
+                "orientation" : orientation,
             }
     
     with open(filepath, "r") as file:
@@ -108,6 +106,48 @@ class quick_annotate:
         self.image = cv2.resize(self.image, (w, h))
         self.vertices = []       
          
+ 
+    def quaternion_rotation_matrix(self, Q):
+        """
+        Covert a quaternion into a full three-dimensional rotation matrix.
+    
+        Input
+        :param Q: A 4 element array representing the quaternion (q0,q1,q2,q3) 
+    
+        Output
+        :return: A 3x3 element matrix representing the full 3D rotation matrix. 
+                This rotation matrix converts a point in the local reference 
+                frame to a point in the global reference frame.
+        """
+        # Extract the values from Q
+        q0 = Q[0]
+        q1 = Q[1]
+        q2 = Q[2]
+        q3 = Q[3]
+        
+        # First row of the rotation matrix
+        r00 = 2 * (q0 * q0 + q1 * q1) - 1
+        r01 = 2 * (q1 * q2 - q0 * q3)
+        r02 = 2 * (q1 * q3 + q0 * q2)
+        
+        # Second row of the rotation matrix
+        r10 = 2 * (q1 * q2 + q0 * q3)
+        r11 = 2 * (q0 * q0 + q2 * q2) - 1
+        r12 = 2 * (q2 * q3 - q0 * q1)
+        
+        # Third row of the rotation matrix
+        r20 = 2 * (q1 * q3 - q0 * q2)
+        r21 = 2 * (q2 * q3 + q0 * q1)
+        r22 = 2 * (q0 * q0 + q3 * q3) - 1
+        
+        # 3x3 rotation matrix
+        rot_matrix = np.array([[r00, r01, r02],
+                            [r10, r11, r12],
+                            [r20, r21, r22]])
+        
+        print(rot_matrix)
+                                
+        return rot_matrix
 
     def run(self):
         
@@ -137,7 +177,8 @@ class quick_annotate:
                     camera = self.load_camera_matrix()
                     meta = {"width": self.image_w,"height": self.image_h, "camera_matrix":camera}
                     bbox = {'kps': self.vertices, "obj_scale": self.boxSize}
-                    projected_points, point_3d_cam, scale, _, bbox = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
+                    projected_points, point_3d_cam, scale, points_ori, bbox = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
+                    print("orientation: ", point_3d_cam)
                     
                     pprint(bbox)
     
@@ -155,18 +196,8 @@ class quick_annotate:
                 if (len(projected_points) > 0):
                     print("saved annotation!")
                     # calculate the rotation and translation matrix
-                    box = boxEstimation(bbox["kps_3d_cam"])
-                    orientation, translation, scale = box.fit(bbox["kps_3d_cam"])
-                    orientation = orientation.tolist()
-                    translation = translation.tolist()
-                    
-                    # print("orientation: ", orientation)
-                    # print("translation: ", translation)
-                    # print("scale (normalised): ", scale)
-
-                    # projected_points = bbox["projected_cuboid"].tolist()
-                    # point_3d_cam = point_3d_cam.tolist()
-                    write_json("pnp_anno.json", self.images[self.idx], orientation, translation)
+                    orientation = (self.quaternion_rotation_matrix(bbox["quaternion_xyzw"])).tolist()      
+                    write_json("pnp_anno.json", self.images[self.idx], orientation)
                     self.reset_image(self.images[self.idx])
                 projected_points = [] 
                 
@@ -191,9 +222,10 @@ class quick_annotate:
         
         
 if __name__ == "__main__":
-    # Always use appropriate boxSize for the object
     
+    # Always use appropriate boxSize for the object
     # click 'a' to annotate the object and 'n' to move to the next image
+    # click 's' to save the annotation
     # click 'r' to reset the image
     # click 'q' to quit the program
 
