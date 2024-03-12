@@ -299,8 +299,8 @@ class App:
                             for item in data:
                                 if item["img_name"] == ("data\\" + self.image_name[self.count_background]):
                                     # print("annotations loaded!")
-                                    print("world cord: ",item["orientation"])
                                     orientation = item["orientation"]    
+                                    print("orientation: ", orientation)
                                     break
                             if (orientation is None):
                                 print("not quick_annotated yet")
@@ -309,13 +309,14 @@ class App:
                             self.orientation_matrix = self.rectangle.RotMult_matrix(orientation)
                             # Apply the orientation matrix
                             self.rectangle.draw_wired_rect(self.orientation_matrix)  
-                                
                         else:
                             print("No annotations found.")
                     
                     if (event.key == pg.K_r):
+                        self.orientation_matrix = None
                         if (event.mod & pg.KMOD_CAPS or event.mod & pg.KMOD_SHIFT):
                             self.rectangle.rotate('reset')
+                            
                         else:
                             self.rectangle.translate('reset')    
                     
@@ -369,7 +370,6 @@ class App:
 
             # --- Drawing the scene --- #
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-            
             self.draw_axis()
             
             if draw:    
@@ -387,7 +387,7 @@ class App:
             
             # --- Update the screen --- #    
             pg.display.flip()
-            pg.time.wait(10)
+            pg.time.wait(100)
         
 
 if __name__ == "__main__":

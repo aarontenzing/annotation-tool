@@ -101,19 +101,18 @@ class RectangleMesh:
     def draw_wired_rect(self, orientation_matrix=None):
         
         glMatrixMode(GL_MODELVIEW)
-        
         glPushMatrix() 
         glLoadIdentity()
     
         glTranslatef(self.position[0], self.position[1], self.position[2])
         
-        if orientation_matrix is None:
-            glRotatef(self.eulers[0], 1, 0, 0)
-            glRotatef(self.eulers[1], 0, 1, 0)
-            glRotatef(self.eulers[2], 0, 0, 1) 
-        
-        else:
+        if orientation_matrix is not None:
             glMultMatrixf(orientation_matrix)
+            
+            
+        glRotatef(self.eulers[0], 1, 0, 0)
+        glRotatef(self.eulers[1], 0, 1, 0)
+        glRotatef(self.eulers[2], 0, 0, 1) 
         
         glEnable(GL_LINE_SMOOTH)  # Enable line smoothing
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)  # Use the highest quality for line smoothing

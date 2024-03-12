@@ -120,10 +120,10 @@ class quick_annotate:
                 frame to a point in the global reference frame.
         """
         # Extract the values from Q
-        q0 = Q[0]
+        q0 = Q[3]
         q1 = Q[1]
         q2 = Q[2]
-        q3 = Q[3]
+        q3 = Q[0]
         
         # First row of the rotation matrix
         r00 = 2 * (q0 * q0 + q1 * q1) - 1
