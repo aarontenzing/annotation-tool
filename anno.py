@@ -5,6 +5,7 @@ from OpenGL.GLU import *
 from rectangle import RectangleMesh
 import os
 from handle_json import *
+import pprint
 
 class Background:
     def __init__(self, filepath): 
@@ -54,13 +55,13 @@ class Background:
         
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(45, window_width/window_height, 0.1, 100) # Set the perspective projection
+        gluPerspective(45, window_width/window_height, 0.1, 200) # Set the perspective projection
         glTranslatef(0.0,0.0, -60)
         
 
 class App:
     
-    def __init__(self):
+    def __init__(self, boxSize=None):
         
         # -- initialize pygame for GUI --
         pg.init() 
@@ -76,6 +77,11 @@ class App:
         
         self.background_path = [] # list of background images 
         self.image_name = []
+        
+        if boxSize is None:
+            self.boxSize = [1,1,1]
+        else:
+            self.boxSize = boxSize
         
         for file in os.listdir(self.dir_data):
             if file.endswith(".jpg") or file.endswith(".JPG") or file.endswith(".png") or file.endswith(".PNG"):
@@ -104,7 +110,7 @@ class App:
         # -- Projection matrix --
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(45, self.display[0]/self.display[1], 0.1, 100)
+        gluPerspective(45, self.display[0]/self.display[1], 0.1, 200)
         # glTranslatef(0.0,0.0, -50)
         # gluLookAt(0, 0, 15, 0, 0, 0, 0, 1, 0)
         self.projectionmatrix = glGetDoublev(GL_PROJECTION_MATRIX)
@@ -118,11 +124,13 @@ class App:
         self.background = Background(self.background_path[0])
         
         # -- Draw wired rectangle --
-        self.rectangle = RectangleMesh(38, 27, 25.5, [0,0,0], [0,0,0])
+        self.rectangle = RectangleMesh(self.boxSize[0], self.boxSize[1], self.boxSize[2], [0,0,0], [0,0,0])
         self.rectangle.draw_wired_rect()
         
         # -- Text --
         self.font = pg.font.Font(None, 24)
+        
+        self.orientation_matrix = None
         
         # -- Main loop --
         self.mainLoop()
@@ -238,11 +246,12 @@ class App:
         glPopMatrix()  
 
 
+
     def mainLoop(self):
         
         draw = True
         load = True
-        step = 1
+        step = 5
         
         running = True
         while running:
@@ -283,7 +292,19 @@ class App:
                             print('Step increment: ', float(step))
                     
                     if (event.key == pg.K_l):
-                        load = not load
+                        if load:
+                            print(self.image_name[self.count_background])
+                            data = read_json("pnp_anno.json")
+                            self.orientation_matrix = self.rectangle.RotMult_matrix()
+                            self.rectangle.draw_wired_rect(self.orientation_matrix)
+                            for item in data:
+                                if item["img_name"] == ("data\\" + self.image_name[self.count_background]):
+                                    print("annotations loaded!")
+                                    print("world cord: ",item["world"])
+                            
+                                    break
+                        else:
+                            print("No annotations found.")
                     
                     if (event.key == pg.K_r):
                         if (event.mod & pg.KMOD_CAPS or event.mod & pg.KMOD_SHIFT):
@@ -341,12 +362,12 @@ class App:
 
             # --- Drawing the scene --- #
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+            
             self.draw_axis()
+            
             if draw:    
                 # draw wired rectangle
-                self.rectangle.draw_wired_rect()
-                
-            if load:
+                self.rectangle.draw_wired_rect(self.orientation_matrix)
                 # Render background
                 self.background.render_background(self.window_width, self.window_height)
                 
@@ -364,5 +385,5 @@ class App:
 
 if __name__ == "__main__":
     
-    app = App()
+    app = App(boxSize=[38, 27, 25.5])
     
