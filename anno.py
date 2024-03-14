@@ -252,6 +252,7 @@ class App:
         draw = True
         load = True
         step = 5
+        dim = 1
         
         running = True
         while running:
@@ -265,6 +266,16 @@ class App:
                 
                 # key pressed
                 if (event.type == pg.KEYDOWN):
+                    
+                    if (event.key == pg.K_d):
+                        del self.rectangle
+                        self.rectangle = RectangleMesh(self.boxSize[0], self.boxSize[1], self.boxSize[2], [0,0,0], [0,0,0])
+                        dim += 1
+                        if dim > 3:
+                            dim = 1
+                        print(dim)
+                        w, h,d = self.rectangle.change_dimension(dim)
+                        self.rectangle.set_dimension(w, h, d)
                     
                     if (event.key == pg.K_i):
                         print("current PJM: \n", glGetDoublev(GL_PROJECTION_MATRIX))
@@ -295,7 +306,7 @@ class App:
                         if load:
                             print(self.image_name[self.count_background])
                             data = read_json("pnp_anno.json")
-                            
+                            orientation = None
                             for item in data:
                                 if item["img_name"] == ("data\\" + self.image_name[self.count_background]):
                                     # print("annotations loaded!")
@@ -304,14 +315,12 @@ class App:
                                     break
                             if (orientation is None):
                                 print("not quick_annotated yet")
-                            
-                            # Create orientation matrix
-                            self.orientation_matrix = self.rectangle.RotMult_matrix(orientation)
-                            # Apply the orientation matrix
-                            self.rectangle.draw_wired_rect(self.orientation_matrix)  
-                        else:
-                            print("No annotations found.")
-                    
+                            else:
+                                # Create orientation matrix
+                                self.orientation_matrix = self.rectangle.RotMult_matrix(orientation)
+                                # Apply the orientation matrix
+                                self.rectangle.draw_wired_rect(self.orientation_matrix)  
+                
                     if (event.key == pg.K_r):
                         self.orientation_matrix = None
                         if (event.mod & pg.KMOD_CAPS or event.mod & pg.KMOD_SHIFT):
@@ -326,8 +335,7 @@ class App:
                     
                     if (event.key == pg.K_p):
                         self.new_background("previous")
-                        print("previous background")
-                     
+                        print("previous background")   
                         
                     # Translation
                     if (event.key == pg.K_UP):
@@ -391,6 +399,6 @@ class App:
         
 
 if __name__ == "__main__":
-    
-    app = App(boxSize=[38, 27, 25.5])
+    # 38 27 25.5
+    app = App(boxSize=[25.5, 27, 38])
     

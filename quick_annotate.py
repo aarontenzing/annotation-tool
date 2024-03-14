@@ -4,6 +4,7 @@ import glob
 from pprint import pprint
 import pickle 
 import json
+from scipy.spatial.transform import Rotation as R
 
 from src.lib.opts import opts
 from src.lib.utils.pnp.cuboid_pnp_shell import pnp_shell    
@@ -105,8 +106,23 @@ class quick_annotate:
         w, h = self.calculateWindow(self.image)
         self.image = cv2.resize(self.image, (w, h))
         self.vertices = []       
-         
  
+    def quaternion_to_matrix(self, q):
+        # Normalize quaternion
+        q /= np.linalg.norm(q)
+        
+        # Extract quaternion components
+        x, y, z, w = q
+        
+        # Compute rotation matrix
+        matrix = np.array([
+            [1 - 2*y*y - 2*z*z, 2*x*y - 2*z*w, 2*x*z + 2*y*w],
+            [2*x*y + 2*z*w, 1 - 2*x*x - 2*z*z, 2*y*z - 2*x*w],
+            [2*x*z - 2*y*w, 2*y*z + 2*x*w, 1 - 2*x*x - 2*y*y]
+        ])
+        
+        return matrix
+        
     def quaternion_rotation_matrix(self, Q):
         """
         Covert a quaternion into a full three-dimensional rotation matrix.
@@ -120,10 +136,10 @@ class quick_annotate:
                 frame to a point in the global reference frame.
         """
         # Extract the values from Q
-        q0 = Q[3]
+        q0 = Q[0]
         q1 = Q[1]
         q2 = Q[2]
-        q3 = Q[0]
+        q3 = Q[3]
         
         # First row of the rotation matrix
         r00 = 2 * (q0 * q0 + q1 * q1) - 1
@@ -164,12 +180,12 @@ class quick_annotate:
             
             if key == ord('a'):
                 print("annotate")
-                if len(self.vertices) > 3 and len(self.vertices) <= 8:
-                    
+                if len(self.vertices) > 3 and len(self.vertices) <= 8:                       
+                        
                     self.vertices = np.array(self.vertices, dtype=np.float64)
                     self.vertices *= self.scaling
                     self.vertices = self.vertices.astype(int)
-                                        
+                   
                     # pnp 
                     if self.boxSize is None:
                         self.boxSize = input("Enter the size of the object [width, height, depth]: ")
@@ -178,7 +194,7 @@ class quick_annotate:
                     meta = {"width": self.image_w,"height": self.image_h, "camera_matrix":camera}
                     bbox = {'kps': self.vertices, "obj_scale": self.boxSize}
                     projected_points, point_3d_cam, scale, points_ori, bbox = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
-                    print("orientation: ", point_3d_cam)
+                    # print("orientation: ", point_3d_cam)
                     
                     pprint(bbox)
     
@@ -196,7 +212,9 @@ class quick_annotate:
                 if (len(projected_points) > 0):
                     print("saved annotation!")
                     # calculate the rotation and translation matrix
-                    orientation = (self.quaternion_rotation_matrix(bbox["quaternion_xyzw"])).tolist()      
+                    r = R.from_quat(bbox["quaternion_xyzw"])
+                    orientation = r.as_euler('zyx', degrees=True).tolist()
+                    # orientation = r.as_matrix().tolist()
                     write_json("pnp_anno.json", self.images[self.idx], orientation)
                     self.reset_image(self.images[self.idx])
                 projected_points = [] 
@@ -218,8 +236,7 @@ class quick_annotate:
         
         # Close all OpenCV windows
         cv2.destroyAllWindows()
-        
-        
+      
         
 if __name__ == "__main__":
     
