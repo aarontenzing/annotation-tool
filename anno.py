@@ -222,6 +222,7 @@ class App:
     def draw_axis(self):
         
         glPushMatrix()
+        
         glTranslatef(0,0,-15)
         # X axis (red)
         glBegin(GL_LINES)
