@@ -1,13 +1,8 @@
 import json
 
-def write_json(filepath, img, world_coordinates, projection_coordinates):
+def write_json(filepath, data):
     print("write!")
     # data written to csv
-    data = {
-                "img_name" : img,
-                "world" : world_coordinates,
-                "projection" : projection_coordinates,
-            }
     
     with open(filepath, "r") as file:
         try:

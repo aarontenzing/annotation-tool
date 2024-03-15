@@ -9,25 +9,7 @@ from scipy.spatial.transform import Rotation as R
 from src.lib.opts import opts
 from src.lib.utils.pnp.cuboid_pnp_shell import pnp_shell    
 from src.tools.objectron_eval.objectron.dataset.box import Box as boxEstimation
-
-def write_json(filepath, img, orientation):
-    # data written to csv
-    data = {
-                "img_name" : img,
-                "orientation" : orientation,
-            }
-    
-    with open(filepath, "r") as file:
-        try:
-            file_data = json.load(file) # file content to python list
-        except json.decoder.JSONDecodeError:
-                file_data = []
-                print("file empty")
-    
-    file_data.append(data) 
-    
-    with open(filepath, 'w') as file:
-        json.dump(file_data, file, indent=2) # dict to array (json)   
+from handle_json import write_json
 
 class quick_annotate:
     def __init__(self, path = None, screen_size = (1920, 1080), boxSize=None):
@@ -88,7 +70,13 @@ class quick_annotate:
         opt.nms = True
         opt.obj_scale = True   
         opt.c = "cereal_box" 
-        return pnp_shell(opt, meta, bbox, points, size, OPENCV_RETURN=False)
+        try:
+            projected_points, point_3d_cam, scale, points_ori, bbox = pnp_shell(opt, meta, bbox, points, size, OPENCV_RETURN=False)
+        except:
+            print("Error: PNP failed! Please click the vertices. In the right order.")
+            return [], [], [], [], [], False
+        return projected_points, point_3d_cam, scale, points_ori, bbox, True
+        
 
     def draw_cuboid(self, points):
         # Draw the points on the image
@@ -136,31 +124,43 @@ class quick_annotate:
                     camera = self.load_camera_matrix()
                     meta = {"width": self.image_w,"height": self.image_h, "camera_matrix":camera}
                     bbox = {'kps': self.vertices, "obj_scale": self.boxSize}
-                    projected_points, point_3d_cam, scale, points_ori, bbox = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
-                    # print("orientation: ", point_3d_cam)
+                    projected_points, point_3d_cam, scale, points_ori, bbox, status = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
                     
-                    pprint(bbox)
-    
                     # draw the cuboid
-                    print("draw estimation!")
-                    self.image = cv2.imread(self.images[self.idx])
-                    self.draw_cuboid(bbox["projected_cuboid"])
-                    self.image = cv2.resize(self.image, (int(self.image_w/self.scaling), int(self.image_h/self.scaling))) # resize the image      
+                    if status == True:
+                        print("draw estimation!")
+                        self.image = cv2.imread(self.images[self.idx])
+                        if bbox is not None and bbox.get("projected_cuboid") is not None:
+                            self.draw_cuboid(bbox["projected_cuboid"])
+                            print("Ready to save annotation!")
+                        else:
+                            print("Error: cant draw the cuboid. Please click the vertices. In the right order")
+                            self.reset_image(self.images[self.idx])
+                        self.image = cv2.resize(self.image, (int(self.image_w/self.scaling), int(self.image_h/self.scaling))) # resize the image
+                    else:
+                        # reset the image
+                        self.reset_image(self.images[self.idx])      
       
                 else:
                     print("Please select 8 vertices: ", self.vertices)
+                    # reset the image
                     self.reset_image(self.images[self.idx])
             
             elif key == ord("s"):
-                if (len(projected_points) > 0):
                     print("saved annotation!")
                     # calculate the rotation and translation matrix
                     r = R.from_quat(bbox["quaternion_xyzw"])
                     orientation = r.as_euler('xyz', degrees=True).tolist()
                     # orientation = r.as_matrix().tolist()
-                    write_json("pnp_anno.json", self.images[self.idx], orientation)
+                    
+                    data = {
+                        "img_name" : self.images[self.idx],
+                        "orientation" : orientation,
+                    }
+                    write_json("pnp_anno.json", data)
+                    
                     self.reset_image(self.images[self.idx])
-                projected_points = [] 
+                    projected_points, point_3d_cam, scale, points_ori, bbox, status = [], [], [], [], [], False
                 
             
             elif key == ord('r'):
