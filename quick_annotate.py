@@ -105,7 +105,8 @@ class quick_annotate:
         self.image = cv2.imread(image_path)
         w, h = self.calculateWindow(self.image)
         self.image = cv2.resize(self.image, (w, h))
-        self.vertices = []       
+        self.vertices = []    
+       
 
     def run(self):
         
@@ -155,7 +156,7 @@ class quick_annotate:
                     print("saved annotation!")
                     # calculate the rotation and translation matrix
                     r = R.from_quat(bbox["quaternion_xyzw"])
-                    orientation = r.as_euler('zyx', degrees=True).tolist()
+                    orientation = r.as_euler('xyz', degrees=True).tolist()
                     # orientation = r.as_matrix().tolist()
                     write_json("pnp_anno.json", self.images[self.idx], orientation)
                     self.reset_image(self.images[self.idx])

@@ -121,13 +121,12 @@ class RectangleMesh:
         
         glTranslatef(self.position[0], self.position[1], self.position[2])
         
+        
         if orientation_matrix is not None:
-            glRotatef(orientation_matrix[2], 1, 0, 0)
-            glRotatef(-orientation_matrix[1], 0, 1, 0)
-            glRotatef(orientation_matrix[0], 0, 0, 1)
-        
-        
-            
+            glRotatef(orientation_matrix[0], 1, 0, 0)
+            glRotatef(orientation_matrix[1], 0, 1, 0)
+            glRotatef(orientation_matrix[2], 0, 0, 1)
+                
         glRotatef(self.eulers[0], 1, 0, 0)
         glRotatef(self.eulers[1], 0, 1, 0)
         glRotatef(self.eulers[2], 0, 0, 1) 
