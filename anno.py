@@ -55,7 +55,7 @@ class Background:
         
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(45, window_width/window_height, 0.1, 200) # Set the perspective projection
+        gluPerspective(45, window_width/window_height, 0.1, 500) # Set the perspective projection
         glTranslatef(0.0,0.0, -60)
         
 
@@ -88,6 +88,10 @@ class App:
                 self.image_name.append(file)
                 self.background_path.append(os.path.join(self.dir_data, file))
         
+        if len(self.background_path) == 0:
+            print("No background images found in data/ directory")
+            return
+        
         print("background path: ", self.background_path[0])
         self.count_background = 0
 
@@ -110,7 +114,7 @@ class App:
         # -- Projection matrix --
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(45, self.display[0]/self.display[1], 0.1, 200)
+        gluPerspective(45, self.display[0]/self.display[1], 0.1, 500)
         # glTranslatef(0.0,0.0, -50)
         # gluLookAt(0, 0, 15, 0, 0, 0, 0, 1, 0)
         self.projectionmatrix = glGetDoublev(GL_PROJECTION_MATRIX)
@@ -211,7 +215,8 @@ class App:
         pixel_coordinates.append((int(x_screen), int(y_screen)))
         
         print(self.screen_size_factor)
-        pixel_coordinates = [(x*self.screen_size_factor, y*self.screen_size_factor) for x,y in pixel_coordinates]
+        pixel_coordinates = [(x, self.window_height-y) for x,y in pixel_coordinates] # flip the y axis
+        pixel_coordinates = [(int(x*self.screen_size_factor), int(y*self.screen_size_factor)) for x,y in pixel_coordinates]
         
         print("pixel coordinates: ", pixel_coordinates)
         print("world coordinates: ", world_coordinates)
@@ -247,11 +252,19 @@ class App:
         glPopMatrix()  
 
 
+    def save_image(self, img_name):
+            pixels = glReadPixels(0, 0, self.display[0], self.display[1], GL_RGB, GL_UNSIGNED_BYTE) 
+            image = pg.image.frombuffer(pixels, (self.display[0], self.display[1]), 'RGB') # read pixels from the OpenGL buffer
+            image = pg.transform.flip(image, False, True) # flip
+            name = os.path.join("anno_images", f"{img_name}")
+            pg.image.save(image, name) # It then converts those pixels into a Pygame surface and saves it using pygame.image.save()
+            print(f"image saved as {name}")
 
     def mainLoop(self):
         
         draw = True
         load = True
+        text = True
         step = 5
         dim = 1
         
@@ -262,15 +275,16 @@ class App:
                 
                 if event.type == pg.QUIT:
                     running = False
-                    self.background.destroy()
                     self.quit()
                 
                 # key pressed
                 if (event.type == pg.KEYDOWN):
                     
+                    # press d to change the dimension order of the rectangle
                     if (event.key == pg.K_d):
+                        position = self.rectangle.position
                         del self.rectangle
-                        self.rectangle = RectangleMesh(self.boxSize[0], self.boxSize[1], self.boxSize[2], [0,0,0], [0,0,0])
+                        self.rectangle = RectangleMesh(self.boxSize[0], self.boxSize[1], self.boxSize[2], [0,0,0], position)
                         dim += 1
                         if dim > 3:
                             dim = 1
@@ -278,25 +292,31 @@ class App:
                         w, h,d = self.rectangle.change_dimension(dim)
                         self.rectangle.set_dimension(w, h, d)
                     
+                    if (event.key == pg.K_t):
+                        text = not text
+                    
+                    # press i to print the current modelview and projection matrix
                     if (event.key == pg.K_i):
                         print("current PJM: \n", glGetDoublev(GL_PROJECTION_MATRIX))
                         print("current MVM: \n", self.rectangle.modelview)
                     
                     if (event.key == K_SPACE):
-                        step = 10
+                        step = 5
                         
                     if (event.key == pg.K_e):
                         draw = not draw
                     
+                    # press a to save the annotations
                     if (event.key == pg.K_a):
                         wc, pc = self.get_annotations(self.rectangle.modelview, glGetDoublev(GL_PROJECTION_MATRIX), glGetIntegerv(GL_VIEWPORT)) # world coordinates and pixel coordinates
                         data = {
                             "img_name" : self.image_name[self.count_background],
-                            "orientation" : self.rectangle.eulers,
                             "world" : wc,
                             "projection" : pc,
                         }
                         write_json("annotations.json", data)
+                        self.save_image(self.image_name[self.count_background])
+                        
                     
                     if (event.key == pg.K_s):
                         if (event.mod & pg.KMOD_CAPS or event.mod & pg.KMOD_SHIFT):
@@ -315,7 +335,7 @@ class App:
                             data = read_json("pnp_anno.json")
                             orientation = None
                             for item in data:
-                                if item["img_name"] == ("data\\" + self.image_name[self.count_background]):
+                                if item["img_name"] == (self.image_name[self.count_background]):
                                     # print("annotations loaded!")
                                     orientation = item["orientation"]    
                                     print("orientation: ", orientation)
@@ -385,7 +405,7 @@ class App:
 
             # --- Drawing the scene --- #
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-            self.draw_axis()
+            # self.draw_axis()
             
             if draw:    
                 # draw wired rectangle
@@ -394,11 +414,12 @@ class App:
                 self.background.render_background(self.window_width, self.window_height)
                 
             # --- Text --- #
-            self.drawText(self.window_width-100, self.window_height-100, f"Step: {round(step, 1) if step > 0.1 else step}")
-            self.drawText(10, 50, f"Rotation x : {round(self.rectangle.eulers[0])}, y : {round(self.rectangle.eulers[1])}, z : {round(self.rectangle.eulers[2])}")
-            self.drawText(10, 70, f"Translation x : {round(self.rectangle.position[0])}, y : {round(self.rectangle.position[1])}, z : {round(self.rectangle.position[2])}")
-            self.drawText(10, 90, f"Dimension w : {self.rectangle.width*2}, h : {self.rectangle.height*2}, d : {self.rectangle.depth*2}")
-            self.drawText(10, self.window_height-40, f"image loaded: {self.image_name[self.count_background]}")
+            if text:
+                self.drawText(self.window_width-100, self.window_height-100, f"Step: {round(step, 1) if step > 0.1 else step}")
+                self.drawText(10, 50, f"Rotation x : {round(self.rectangle.eulers[0])}, y : {round(self.rectangle.eulers[1])}, z : {round(self.rectangle.eulers[2])}")
+                self.drawText(10, 70, f"Translation x : {round(self.rectangle.position[0])}, y : {round(self.rectangle.position[1])}, z : {round(self.rectangle.position[2])}")
+                self.drawText(10, 90, f"Dimension w : {self.rectangle.width*2}, h : {self.rectangle.height*2}, d : {self.rectangle.depth*2}")
+                self.drawText(10, self.window_height-40, f"image loaded: {self.image_name[self.count_background]}")
             
             # --- Update the screen --- #    
             pg.display.flip()

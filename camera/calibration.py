@@ -63,6 +63,20 @@ pickle.dump((cameraMatrix, dist), open( "calibration.pkl", "wb" ))
 pickle.dump(cameraMatrix, open( "cameraMatrix.pkl", "wb" ))
 pickle.dump(dist, open( "dist.pkl", "wb" ))
 
+############## UNDISTORTION #####################################################
+
+img = cv.imread('camera\\1.jpg')
+h, w = img.shape[:2]
+newCameraMatrix, roi = cv.getOptimalNewCameraMatrix(cameraMatrix, dist, (w,h), 1, (w,h))
+
+# Undistort
+dst = cv.undistort(img, cameraMatrix, dist, None, newCameraMatrix)
+
+# crop the image
+x, y, w, h = roi
+dst = dst[y:y+h, x:x+w]
+cv.imwrite('caliResult1.jpg', dst)
+
 # Reprojection Error
 mean_error = 0
 

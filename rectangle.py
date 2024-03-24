@@ -129,14 +129,14 @@ class RectangleMesh:
                 
         glRotatef(self.eulers[0], 1, 0, 0)
         glRotatef(self.eulers[1], 0, 1, 0)
-        glRotatef(self.eulers[2], 0, 0, 1) 
+        glRotatef(-self.eulers[2], 0, 0, 1) 
         
         glEnable(GL_LINE_SMOOTH)  # Enable line smoothing
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)  # Use the highest quality for line smoothing
-        glLineWidth(1)
+        glLineWidth(2)
         
         glBegin(GL_LINES)
-        glColor3f(1.0, 1.0, 1.0)  
+        glColor3f(0.0, 1.0, 0.0)  
         for edge in self.edges:
             for vertex in edge:
                 glVertex3fv(self.vertices[vertex])

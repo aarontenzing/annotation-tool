@@ -3,19 +3,22 @@ import numpy as np
 import glob
 from pprint import pprint
 import pickle 
-import json
 from scipy.spatial.transform import Rotation as R
 
 from src.lib.opts import opts
 from src.lib.utils.pnp.cuboid_pnp_shell import pnp_shell    
 from src.tools.objectron_eval.objectron.dataset.box import Box as boxEstimation
-from handle_json import write_json
+from handle_json import write_json, clear_json
+import os
 
 class quick_annotate:
     def __init__(self, path = None, screen_size = (1920, 1080), boxSize=None):
         
         if path is None:
-            self.path = ("data\\*.jpg")
+            BASE = os.path.dirname(os.path.abspath(__file__))
+            dir = os.path.join(BASE, 'data', '*.jpg')
+            print(dir)
+            self.path = dir 
         else:
             self.path = path
         
@@ -77,7 +80,6 @@ class quick_annotate:
             return [], [], [], [], [], False
         return projected_points, point_3d_cam, scale, points_ori, bbox, True
         
-
     def draw_cuboid(self, points):
         # Draw the points on the image
         for coordinate in points:
@@ -153,8 +155,12 @@ class quick_annotate:
                     orientation = r.as_euler('xyz', degrees=True).tolist()
                     # orientation = r.as_matrix().tolist()
                     
+                    projection = bbox['projected_cuboid'].tolist()
+                    projection = [[int(x[0]), int(x[1])] for x in projection]
+                    
                     data = {
-                        "img_name" : self.images[self.idx],
+                        "img_name" : self.images[self.idx].split("\\")[-1],
+                        "projection" : projection,
                         "orientation" : orientation,
                     }
                     write_json("pnp_anno.json", data)
@@ -162,7 +168,10 @@ class quick_annotate:
                     self.reset_image(self.images[self.idx])
                     projected_points, point_3d_cam, scale, points_ori, bbox, status = [], [], [], [], [], False
                 
-            
+            elif key == ord('c'): 
+                clear_json("pnp_anno.json")
+                print("cleared annotation!")           
+                        
             elif key == ord('r'):
                 self.reset_image(self.images[self.idx])  
                     
@@ -173,6 +182,7 @@ class quick_annotate:
                     self.idx = 0
                 
                 self.reset_image(self.images[self.idx])
+                print("image: ", self.images[self.idx])
                 
             elif key == ord('q'):
                 break
