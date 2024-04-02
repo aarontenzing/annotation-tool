@@ -127,6 +127,7 @@ class quick_annotate:
                     meta = {"width": self.image_w,"height": self.image_h, "camera_matrix":camera}
                     bbox = {'kps': self.vertices, "obj_scale": self.boxSize}
                     projected_points, point_3d_cam, scale, points_ori, bbox, status = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
+                    pprint(bbox)
                     
                     # draw the cuboid
                     if status == True:
@@ -199,7 +200,7 @@ if __name__ == "__main__":
     # click 'r' to reset the image
     # click 'q' to quit the program
 
-    qa = quick_annotate(boxSize=[38, 27, 25.5])
+    qa = quick_annotate(boxSize=[25.5, 27, 38])
     qa.run()
 
         
