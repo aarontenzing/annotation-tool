@@ -200,6 +200,7 @@ class CuboidPNPSolver(object):
                 quaternion = self.convert_rvec_to_quaternion(rvec)
 
                 # Still use OpenCV way to project 3D points
+                print("rvec: \n", rvec, "\ntvec: \n", tvec)
                 projected_points, _ = cv2.projectPoints(cuboid3d_points, rvec, tvec, self._camera_intrinsic_matrix,
                                                         self._dist_coeffs)
                 projected_points = np.squeeze(projected_points)

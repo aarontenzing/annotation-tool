@@ -7,8 +7,8 @@ import pickle
 
 ################ FIND CHESSBOARD CORNERS - OBJECT POINTS AND IMAGE POINTS #############################
 
-chessboardSize = (8,6) # vertices
-frameSize = (4608,3456) # image size
+chessboardSize = (10,6) # vertices
+frameSize = (5184,3888) # image size
 
 # termination criteria
 criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -18,7 +18,7 @@ criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 objp = np.zeros((chessboardSize[0] * chessboardSize[1], 3), np.float32)
 objp[:,:2] = np.mgrid[0:chessboardSize[0],0:chessboardSize[1]].T.reshape(-1,2)
 
-size_of_chessboard_squares_mm = 20
+size_of_chessboard_squares_mm = 15
 objp = objp * size_of_chessboard_squares_mm
 
 
@@ -27,9 +27,11 @@ objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
 
 
-images = glob.glob('camera\\*.jpg')
+images = glob.glob('camera/*.JPG')
+print(images)
 for image in images:
     img = cv.imread(image)
+    print(image)
     img = cv.resize(img, frameSize)
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
@@ -65,7 +67,7 @@ pickle.dump(dist, open( "dist.pkl", "wb" ))
 
 ############## UNDISTORTION #####################################################
 
-img = cv.imread('camera\\1.jpg')
+#img = cv.imread('camera\\1.jpg')
 h, w = img.shape[:2]
 newCameraMatrix, roi = cv.getOptimalNewCameraMatrix(cameraMatrix, dist, (w,h), 1, (w,h))
 
