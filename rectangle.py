@@ -1,14 +1,15 @@
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import numpy as np
+import itertools
 
 class RectangleMesh:
 
     def __init__(self, width, height, depth, eulers, position):
             
-        self.width = width/2
-        self.height = height/2
-        self.depth = depth/2
+        self.width = width
+        self.height = height
+        self.depth = depth
         self.eulers= np.array(eulers, dtype=np.float32) # angle
         self.position= np.array(position, dtype=np.float32) # position
         self.center = (0,0,0,0) # drew rect around (0,0,0)
@@ -16,14 +17,14 @@ class RectangleMesh:
         
         # Cube vertices and edges
         self.vertices = (
-            (self.width,  self.height,  self.depth), # top right back
-            (-self.width, self.height, self.depth), # top left back
-            (-self.width, -self.height, self.depth), # bottom left back
-            (self.width, -self.height, self.depth), # bottom right back
-            (self.width, self.height, -self.depth), # top right front
-            (-self.width, self.height, -self.depth), # top left front
-            (-self.width, -self.height, -self.depth), # bottom left front
-            (self.width, -self.height, -self.depth) # bottom right front
+            (self.width / 2.0,  self.height / 2.0,  self.depth / 2.0),  # top right back
+            (-self.width / 2.0, self.height / 2.0, self.depth / 2.0),  # top left back
+            (-self.width / 2.0, -self.height / 2.0, self.depth / 2.0),  # bottom left back
+            (self.width / 2.0, -self.height / 2.0, self.depth / 2.0),  # bottom right back
+            (self.width / 2.0, self.height / 2.0, -self.depth / 2.0),  # top right front
+            (-self.width / 2.0, self.height / 2.0, -self.depth / 2.0),  # top left front
+            (-self.width / 2.0, -self.height / 2.0, -self.depth / 2.0),  # bottom left front
+            (self.width / 2.0, -self.height / 2.0, -self.depth / 2.0)   # bottom right front
         )
 
         self.edges = (
@@ -49,14 +50,14 @@ class RectangleMesh:
 
     def set_vertices(self, width, height, depth):
         self.vertices = (
-            (width,  height,  depth),
-            (-width, height, depth),
-            (-width, -height, depth),
-            (width, -height, depth),
-            (width, height, -depth),
-            (-width, height, -depth),
-            (-width, -height, -depth),
-            (width, -height, -depth)
+            (width / 2.0,  height / 2.0,  depth / 2.0),   # top right back
+            (-width / 2.0, height / 2.0,  depth / 2.0),   # top left back
+            (-width / 2.0, -height / 2.0, depth / 2.0),   # bottom left back
+            (width / 2.0,  -height / 2.0, depth / 2.0),   # bottom right back
+            (width / 2.0,  height / 2.0, -depth / 2.0),   # top right front
+            (-width / 2.0, height / 2.0, -depth / 2.0),   # top left front
+            (-width / 2.0, -height / 2.0, -depth / 2.0),  # bottom left front
+            (width / 2.0,  -height / 2.0, -depth / 2.0)   # bottom right front
         )
     
     def translate(self, direction, step=1):
@@ -97,15 +98,6 @@ class RectangleMesh:
             self.eulers[2] += step 
 
     
-    def change_dimension(self, dimension):
-        if (dimension == 1):
-            return self.width, self.height, self.depth
-        elif (dimension == 2):
-            return self.height, self.depth, self.width
-        elif (dimension == 3):
-            return self.depth, self.width, self.height
-    
-    
     def set_dimension(self, w, h, d):
         self.width = w
         self.height = h
@@ -113,23 +105,24 @@ class RectangleMesh:
         self.set_vertices(self.width, self.height, self.depth)
     
     
-    def draw_wired_rect(self, orientation_matrix=None):
+    def draw_wired_rect(self, orientation_matrix=None, translation_matrix=None):
         
         glMatrixMode(GL_MODELVIEW)
         glPushMatrix() 
         glLoadIdentity()
-        
+
         glTranslatef(self.position[0], self.position[1], self.position[2])
         
-        
         if orientation_matrix is not None:
+
             glRotatef(orientation_matrix[0], 1, 0, 0)
             glRotatef(orientation_matrix[1], 0, 1, 0)
             glRotatef(orientation_matrix[2], 0, 0, 1)
+            glTranslatef(translation_matrix[0], translation_matrix[1], -translation_matrix[2])
                 
         glRotatef(self.eulers[0], 1, 0, 0)
         glRotatef(self.eulers[1], 0, 1, 0)
-        glRotatef(-self.eulers[2], 0, 0, 1) 
+        glRotatef(self.eulers[2], 0, 0, 1) 
         
         glEnable(GL_LINE_SMOOTH)  # Enable line smoothing
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)  # Use the highest quality for line smoothing
@@ -153,8 +146,6 @@ class RectangleMesh:
         flattend_matrix = identity_matrix.flatten()
         # glLoadMatrixf(flattend_matrix)
         return flattend_matrix
-        
-
 
     def get_norm_dim(self):
         # normalize dimensions

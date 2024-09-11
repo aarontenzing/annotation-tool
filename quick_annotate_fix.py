@@ -4,7 +4,7 @@ import glob
 from pprint import pprint
 import pickle 
 from scipy.spatial.transform import Rotation as R
-import pyrr
+import itertools
 
 from src.lib.opts import opts
 from src.lib.utils.pnp.cuboid_pnp_shell import pnp_shell    
@@ -30,6 +30,8 @@ class quick_annotate:
         self.idx = 0
         self.boxSize = boxSize
         self.vertices = []
+        
+        self.data = {}
         
         self.image_w = self.image.shape[1]
         self.image_h = self.image.shape[0]
@@ -67,19 +69,91 @@ class quick_annotate:
         # cameraMatrix = np.array([[3456, 0, 2304],[0,3456,1728], [0, 0, 1]], dtype=np.float32)
         cameraMatrix = pickle.load(open("cameraMatrix.pkl", "rb"))
         print("cameraMatrix:\n", cameraMatrix)
-        return cameraMatrix
+        distMatrix = pickle.load(open("dist.pkl", "rb"))
+        return cameraMatrix, distMatrix
 
-    def calculate_cuboid(self, meta, bbox, points, size): 
-        opt = opts()
-        opt.nms = True
-        opt.obj_scale = True   
-        opt.c = "cereal_box" 
-        try:
-            projected_points, point_3d_cam, scale, points_ori, bbox = pnp_shell(opt, meta, bbox, points, size, OPENCV_RETURN=False)
-        except:
-            print("Error: PNP failed! Please click the vertices. In the right order.")
-            return [], [], [], [], [], False
-        return projected_points, point_3d_cam, scale, points_ori, bbox, True
+    def calculate_cuboid(self, size, image_points, camera_matrix, dist_coeffs):
+
+        status = False
+        dims = list(itertools.permutations(size))
+        image_points = np.array(image_points, dtype=np.float32)
+        print("Permutations: ", dims)
+
+        error_distance = np.inf
+        best_PNP_image_points = None
+        best_rotation_vector = None
+        best_translation_vector = None
+        best_dimensions = None
+
+        for i in dims:
+            width, height, depth = i[0], i[1], i[2]
+            # X axis point to the right
+            right = width / 2.0
+            left = -width / 2.0
+            # Y axis point upward
+            top = height / 2.0
+            bottom = -height / 2.0
+            # Z axis point forward
+            front = depth / 2.0
+            rear = -depth / 2.0
+
+            # List of 8 vertices of the box
+            object_points =  np.array([
+                # self.center_location,   # Center
+                [left, bottom, rear],  # Rear Bottom Left
+                [left, bottom, front],  # Front Bottom Left
+                [left, top, rear],  # Rear Top Left
+                [left, top, front],  # Front Top Left
+
+                [right, bottom, rear],  # Rear Bottom Right
+                [right, bottom, front],  # Front Bottom Right
+                [right, top, rear],  # Rear Top Right
+                [right, top, front  ],  # Front Top Right
+
+            ], dtype=np.float32)
+                
+            flag = cv2.SOLVEPNP_ITERATIVE
+
+            
+            ret, rotation_vector, translation_vector, reprojectionError = cv2.solvePnPGeneric(
+                        object_points,
+                        image_points,
+                        camera_matrix,
+                        dist_coeffs,
+                        flags=flag
+                ) 
+            
+            if not ret:
+                continue
+            
+            rotation_vector = rotation_vector[0]
+            translation_vector = translation_vector[0]
+                
+            # Project the transformed 3D points to 2D using OpenCV's projectPoints
+            PNP_image_points, _ = cv2.projectPoints(object_points, rotation_vector, translation_vector, camera_matrix, dist_coeffs)
+            
+            # Transformation object points and rot and trans matrix
+            
+            
+            error = 0
+            # calculate the error distance
+            for i in range(len(image_points)):
+                error += np.linalg.norm(image_points[i] - PNP_image_points[i])
+            
+            print("Dims: ", width, height, depth)
+            print("current error distance: ", error_distance)
+            
+            if error < error_distance:
+                error_distance = error
+                best_rotation_vector = rotation_vector
+                best_translation_vector = translation_vector
+                best_dimensions = [width, height, depth]
+                best_object_points = object_points
+                best_PNP_image_points = PNP_image_points
+                status = True
+                
+        return best_PNP_image_points, best_rotation_vector, best_translation_vector, best_dimensions, status
+
         
     def draw_cuboid(self, points):
         # Draw the points on the image
@@ -119,28 +193,29 @@ class quick_annotate:
                     self.vertices = np.array(self.vertices, dtype=np.float64)
                     self.vertices *= self.scaling
                     self.vertices = self.vertices.astype(int)
+                    image_points = np.array(self.vertices, dtype=np.float32)
                    
                     # pnp 
                     if self.boxSize is None:
                         self.boxSize = input("Enter the size of the object [width, height, depth]: ")
             
-                    camera = self.load_camera_matrix()
-                    meta = {"width": self.image_w,"height": self.image_h, "camera_matrix":camera}
-                    bbox = {'kps': self.vertices, "obj_scale": self.boxSize}
-                    projected_points, point_3d_cam, scale, points_ori, bbox, status = self.calculate_cuboid(meta, bbox, self.vertices, self.boxSize)
-                    pprint(bbox)
+                    camera, dist = self.load_camera_matrix()
+                    PNP_imagepoints, rotation_vector, translation_vector, dimensions, status = self.calculate_cuboid(self.boxSize, self.vertices, camera, dist)
+                    PNP_imagepoints =  PNP_imagepoints.reshape(-1, 2)
                     
-                    # r = R.from_quat(bbox["quaternion_xyzw"])
-                    # rotation_vector = r.as_rotvec()   
-                    # print("rotation vector: ", rotation_vector)
+                    rotation_matrix, _ = cv2.Rodrigues(rotation_vector)
+                    r = R.from_matrix(rotation_matrix)
+                    euler_angles = r.as_euler('xyz', degrees=True)  # 'xyz' for roll, pitch, yaw
+                    print("Euler angles: ", euler_angles)
                     
                     # draw the cuboid
                     if status == True:
                         print("draw estimation!")
                         self.image = cv2.imread(self.images[self.idx])
-                        if bbox is not None and bbox.get("projected_cuboid") is not None:
-                            self.draw_cuboid(bbox["projected_cuboid"])
+                        if PNP_imagepoints is not None:
+                            self.draw_cuboid(PNP_imagepoints)
                             print("Ready to save annotation!")
+                            self.data = {"img_name" : self.images[self.idx].split("\\")[-1], "orientation": euler_angles.tolist(), "translation": translation_vector.flatten().tolist(), "dimensions": dimensions}
                         else:
                             print("Error: cant draw the cuboid. Please click the vertices. In the right order")
                             self.reset_image(self.images[self.idx])
@@ -156,22 +231,8 @@ class quick_annotate:
             
             elif key == ord("s"):
                     print("saved annotation!")
-                    # calculate the rotation and translation matrix
-                    r = R.from_quat(bbox["quaternion_xyzw"])
                     
-                    orientation = r.as_euler('xyz', degrees=True).tolist()
-                    # orientation = r.as_matrix().tolist()
-                    
-                    projection = bbox['projected_cuboid'].tolist()
-                    projection = [[int(x[0]), int(x[1])] for x in projection]
-                    
-                    data = {
-                        "img_name" : self.images[self.idx].split("\\")[-1],
-                        "projection" : projection,
-                        "orientation" : orientation,
-                        "translation" : bbox["location"],
-                    }
-                    write_json("pnp_anno.json", data)
+                    write_json("pnp_anno.json", self.data)
                     
                     self.reset_image(self.images[self.idx])
                     projected_points, point_3d_cam, scale, points_ori, bbox, status = [], [], [], [], [], False

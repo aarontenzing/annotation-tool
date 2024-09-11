@@ -6,6 +6,7 @@ from rectangle import RectangleMesh
 import os
 from handle_json import *
 import pprint
+import itertools
 
 class Background:
     def __init__(self, filepath): 
@@ -66,7 +67,7 @@ class App:
         # -- initialize pygame for GUI --
         pg.init() 
         self.screen_info = pg.display.Info()
-        print(self.screen_info.current_w, self.screen_info.current_h)
+        print('screen dims', self.screen_info.current_w, self.screen_info.current_h)
         
         # -- Read backgrounds from data/ --
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -135,6 +136,8 @@ class App:
         self.font = pg.font.Font(None, 24)
         
         self.orientation_matrix = None
+        self.translation_matrix = None
+        self.dimension_order = None
         
         # -- Main loop --
         self.mainLoop()
@@ -203,18 +206,20 @@ class App:
         pixel_coordinates = []
         
         for vertex in self.rectangle.vertices:
-            x_screen, y_screen, _ =  gluProject(vertex[0], vertex[1], vertex[2], model_view, projection, viewport)
+            x_screen, y_screen, z_screen =  gluProject(vertex[0], vertex[1], vertex[2], model_view, projection, viewport)
             pixel_coordinates.append((int(x_screen),int(y_screen)))
-            x_world, y_world, z_world = gluUnProject( x_screen, y_screen, 0, model_view, projection, viewport)
+            y_screen_flipped = viewport[3] - y_screen
+            x_world, y_world, z_world = gluUnProject( x_screen, y_screen_flipped, z_screen, model_view, projection, viewport)
             world_coordinates.append((x_world, y_world, z_world))
         
         # Calculate center
-        x_screen, y_screen, _ = gluProject(0, 0, 0, model_view, projection, viewport)
-        x_world, y_world, z_world = gluUnProject( x_screen, y_screen, 0, model_view, projection, viewport)
+        x_screen, y_screen, z_screen = gluProject(0, 0, 0, model_view, projection, viewport)
+        y_screen_flipped = viewport[3] - y_screen
+        x_world, y_world, z_world = gluUnProject( x_screen, y_screen_flipped, z_screen, model_view, projection, viewport)
         world_coordinates.append((x_world, y_world, z_world))
         pixel_coordinates.append((int(x_screen), int(y_screen)))
         
-        print(self.screen_size_factor)
+        # print(self.screen_size_factor)
         pixel_coordinates = [(x, self.window_height-y) for x,y in pixel_coordinates] # flip the y axis
         pixel_coordinates = [(int(x*self.screen_size_factor), int(y*self.screen_size_factor)) for x,y in pixel_coordinates]
         
@@ -286,10 +291,12 @@ class App:
                         del self.rectangle
                         self.rectangle = RectangleMesh(self.boxSize[0], self.boxSize[1], self.boxSize[2], [0,0,0], position)
                         dim += 1
-                        if dim > 3:
+                        if dim > 6:
                             dim = 1
-                        print(dim)
-                        w, h,d = self.rectangle.change_dimension(dim)
+                        
+                        dims = list(itertools.permutations(self.boxSize))
+                        
+                        w, h, d = dims[dim-1][0], dims[dim-1][1], dims[dim-1][2]
                         self.rectangle.set_dimension(w, h, d)
                     
                     if (event.key == pg.K_t):
@@ -312,6 +319,7 @@ class App:
                         data = {
                             "img_name" : self.image_name[self.count_background],
                             "world" : wc,
+                            "dimensions" : self.dimension_order,
                             "projection" : pc,
                         }
                         write_json("annotations.json", data)
@@ -336,17 +344,23 @@ class App:
                             orientation = None
                             for item in data:
                                 if item["img_name"] == (self.image_name[self.count_background]):
-                                    # print("annotations loaded!")
+                                    print("annotations loaded!")
                                     orientation = item["orientation"]    
-                                    print("orientation: ", orientation)
+                                    translation = item["translation"]
+                                    dim = item["dimensions"]         
                                     break
                             if (orientation is None):
                                 print("not quick_annotated yet")
                             else:
                                 # Create orientation matrix
-                                self.orientation_matrix = self.rectangle.RotMult_matrix(orientation)
-                                # Apply the orientation matrix
-                                self.rectangle.draw_wired_rect(self.orientation_matrix)  
+                                self.orientation_matrix = orientation
+                                self.translation_matrix = translation
+                                self.rectangle.set_dimension(dim[0], dim[1], dim[2])
+                                self.dimension_order = dim
+                                
+                                # Apply the orientation and translation matrix
+                                self.rectangle.draw_wired_rect(self.orientation_matrix, self.translation_matrix) 
+                            
                 
                     if (event.key == pg.K_r):
                         self.orientation_matrix = None
@@ -409,16 +423,16 @@ class App:
             
             if draw:    
                 # draw wired rectangle
-                self.rectangle.draw_wired_rect(self.orientation_matrix)
+                self.rectangle.draw_wired_rect(self.orientation_matrix, self.translation_matrix)
                 # Render background
                 self.background.render_background(self.window_width, self.window_height)
                 
             # --- Text --- #
             if text:
                 self.drawText(self.window_width-100, self.window_height-100, f"Step: {round(step, 1) if step > 0.1 else step}")
-                self.drawText(10, 50, f"Rotation x : {round(self.rectangle.eulers[0])}, y : {round(self.rectangle.eulers[1])}, z : {round(self.rectangle.eulers[2])}")
-                self.drawText(10, 70, f"Translation x : {round(self.rectangle.position[0])}, y : {round(self.rectangle.position[1])}, z : {round(self.rectangle.position[2])}")
-                self.drawText(10, 90, f"Dimension w : {self.rectangle.width*2}, h : {self.rectangle.height*2}, d : {self.rectangle.depth*2}")
+                self.drawText(10, 50, f"Rotation x : {(self.rectangle.eulers[0])}, y : {(self.rectangle.eulers[1])}, z : {(self.rectangle.eulers[2])}")
+                self.drawText(10, 70, f"Translation x : {(self.rectangle.position[0])}, y : {(self.rectangle.position[1])}, z : {(self.rectangle.position[2])}")
+                self.drawText(10, 90, f"Dimension w : {self.rectangle.width}, h : {self.rectangle.height}, d : {self.rectangle.depth}")
                 self.drawText(10, self.window_height-40, f"image loaded: {self.image_name[self.count_background]}")
             
             # --- Update the screen --- #    
@@ -427,6 +441,6 @@ class App:
         
 
 if __name__ == "__main__":
-    # 38 27 25.5
-    app = App(boxSize=[25.5, 27, 38])
+    # 38 27 25.3
+    app = App(boxSize=[13.5, 15.5, 18])
     
