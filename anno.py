@@ -8,6 +8,9 @@ from handle_json import *
 import pprint
 import itertools
 
+# import program quick_annotate
+from quick_annotate_fix import quick_annotate
+
 class Background:
     def __init__(self, filepath): 
         self.texture = glGenTextures(1)
@@ -53,11 +56,10 @@ class Background:
         
         # Restore the previous matrix state
         glPopMatrix()
-        
+    
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         gluPerspective(45, window_width/window_height, 0.1, 500) # Set the perspective projection
-        glTranslatef(0.0,0.0, -60)
         
 
 class App:
@@ -113,23 +115,25 @@ class App:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) # set the blending function
         
         # -- Projection matrix --
-        glMatrixMode(GL_PROJECTION)
-        glLoadIdentity()
-        gluPerspective(45, self.display[0]/self.display[1], 0.1, 500)
-        # glTranslatef(0.0,0.0, -50)
-        # gluLookAt(0, 0, 15, 0, 0, 0, 0, 1, 0)
-        self.projectionmatrix = glGetDoublev(GL_PROJECTION_MATRIX)
-        print("Initial PJM: \n",self.projectionmatrix)
+        # glMatrixMode(GL_PROJECTION)
+        # glLoadIdentity()
+        # # gluPerspective(45, self.display[0]/self.display[1], 0.1, 500)
+        # ## glTranslatef(0.0,0.0, -50)
+        # ## gluLookAt(0, 0, 15, 0, 0, 0, 0, 1, 0)
+        # self.projectionmatrix = glGetDoublev(GL_PROJECTION_MATRIX)
+        # print("Initial PJM: \n",self.projectionmatrix)
         
-        # - Modelview matrix --
-        glMatrixMode(GL_MODELVIEW) 
-        glLoadIdentity()
+        # # - Modelview matrix --
+        # glMatrixMode(GL_MODELVIEW) 
+        # glLoadIdentity()
         
         # -- Setting background --
         self.background = Background(self.background_path[0])
         
+        
         # -- Draw wired rectangle --
-        self.rectangle = RectangleMesh(self.boxSize[0], self.boxSize[1], self.boxSize[2], [0,0,0], [0,0,0])
+        cam, dist=qa.load_camera_matrix()
+        self.rectangle = RectangleMesh(self.boxSize[0], self.boxSize[1], self.boxSize[2], [0,0,0], [0,0,0], cam=cam)
         self.rectangle.draw_wired_rect()
         
         # -- Text --
@@ -206,25 +210,33 @@ class App:
         pixel_coordinates = []
         
         for vertex in self.rectangle.vertices:
-            x_screen, y_screen, z_screen =  gluProject(vertex[0], vertex[1], vertex[2], model_view, projection, viewport)
-            pixel_coordinates.append((int(x_screen),int(y_screen)))
+            # Project world coordinates to screen coordinates
+            x_screen, y_screen, z_screen = gluProject(vertex[0], vertex[1], vertex[2], model_view, projection, viewport)
+            pixel_coordinates.append((int(x_screen), int(y_screen)))
+            
+            # Flip y coordinate (OpenGL's coordinate system vs window coordinates)
+            # print("viewport",viewport)
             y_screen_flipped = viewport[3] - y_screen
-            x_world, y_world, z_world = gluUnProject( x_screen, y_screen_flipped, z_screen, model_view, projection, viewport)
+            
+            # Unproject back to world coordinates
+            x_world, y_world, z_world = gluUnProject(x_screen, y_screen_flipped, z_screen, model_view, projection, viewport)
+            # print("x_world, y_world, z_world", x_world, y_world, z_world)
             world_coordinates.append((x_world, y_world, z_world))
+    
         
-        # Calculate center
+        # Calculate center coordinates
         x_screen, y_screen, z_screen = gluProject(0, 0, 0, model_view, projection, viewport)
         y_screen_flipped = viewport[3] - y_screen
-        x_world, y_world, z_world = gluUnProject( x_screen, y_screen_flipped, z_screen, model_view, projection, viewport)
+        x_world, y_world, z_world = gluUnProject(x_screen, y_screen_flipped, z_screen, model_view, projection, viewport)
         world_coordinates.append((x_world, y_world, z_world))
         pixel_coordinates.append((int(x_screen), int(y_screen)))
         
-        # print(self.screen_size_factor)
-        pixel_coordinates = [(x, self.window_height-y) for x,y in pixel_coordinates] # flip the y axis
-        pixel_coordinates = [(int(x*self.screen_size_factor), int(y*self.screen_size_factor)) for x,y in pixel_coordinates]
+        # Adjust pixel coordinates
+        pixel_coordinates = [(x, self.window_height - y) for x, y in pixel_coordinates]  # Flip y axis
+        pixel_coordinates = [(int(x * self.screen_size_factor), int(y * self.screen_size_factor)) for x, y in pixel_coordinates]
         
-        print("pixel coordinates: ", pixel_coordinates)
-        print("world coordinates: ", world_coordinates)
+        print("Pixel coordinates:", pixel_coordinates)
+        print("World coordinates:", world_coordinates)
         
         return world_coordinates, pixel_coordinates
              
@@ -316,12 +328,14 @@ class App:
                     # press a to save the annotations
                     if (event.key == pg.K_a):
                         wc, pc = self.get_annotations(self.rectangle.modelview, glGetDoublev(GL_PROJECTION_MATRIX), glGetIntegerv(GL_VIEWPORT)) # world coordinates and pixel coordinates
+                        
                         data = {
                             "img_name" : self.image_name[self.count_background],
                             "world" : wc,
                             "dimensions" : self.dimension_order,
                             "projection" : pc,
                         }
+                        
                         write_json("annotations.json", data)
                         self.save_image(self.image_name[self.count_background])
                         
@@ -345,18 +359,26 @@ class App:
                             for item in data:
                                 if item["img_name"] == (self.image_name[self.count_background]):
                                     print("annotations loaded!")
-                                    orientation = item["orientation"]    
-                                    translation = item["translation"]
-                                    dim = item["dimensions"]         
+                                    # orientation = item["orientation"]    
+                                    # translation = item["translation"]
+                                    self.rectangle.eulers[0] = item["orientation"][0]
+                                    self.rectangle.eulers[1] = item["orientation"][1]
+                                    self.rectangle.eulers[2] = item["orientation"][2]
+                                    self.rectangle.position[0] = item["translation"][0]
+                                    self.rectangle.position[1] = item["translation"][1]
+                                    z = item["translation"][2]
+                                    if z > 0:
+                                        print("mirror found make -")
+                                        z *=-1  
+                                    self.rectangle.position[2] = z
+                                    self.rectangle.set_dimension(item["dimensions"] [0], item["dimensions"] [1], item["dimensions"] [2])
+                                    self.dimension_order = item["dimensions"]   
                                     break
-                            if (orientation is None):
-                                print("not quick_annotated yet")
-                            else:
+                                
                                 # Create orientation matrix
-                                self.orientation_matrix = orientation
-                                self.translation_matrix = translation
-                                self.rectangle.set_dimension(dim[0], dim[1], dim[2])
-                                self.dimension_order = dim
+                                # self.orientation_matrix = orientation
+                                # self.translation_matrix = translation
+                                
                                 
                                 # Apply the orientation and translation matrix
                                 self.rectangle.draw_wired_rect(self.orientation_matrix, self.translation_matrix) 
@@ -441,6 +463,11 @@ class App:
         
 
 if __name__ == "__main__":
-    # 38 27 25.3
-    app = App(boxSize=[13.5, 15.5, 18])
+    size_box = [25.5, 27, 38]
+    # OPENCV
+    qa = quick_annotate(boxSize=size_box)
+    qa.run()
+    
+    # OPENGL 
+    app = App(boxSize=size_box)
     

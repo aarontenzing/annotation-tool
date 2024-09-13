@@ -13,16 +13,8 @@ from handle_json import write_json, clear_json
 import os
 
 class quick_annotate:
-    def __init__(self, path = None, screen_size = (1920, 1080), boxSize=None):
-        
-        if path is None:
-            BASE = os.path.dirname(os.path.abspath(__file__))
-            dir = os.path.join(BASE, 'data', '*.jpg')
-            print(dir)
-            self.path = dir 
-        else:
-            self.path = path
-        
+    def __init__(self, path = None, screen_size = (1920, 1080), boxSize=None):        
+        self.path = "data/*.jpg"
         self.images = glob.glob(self.path) # get all images in the path
         self.image = cv2.imread(self.images[0])
         self.screen_size = screen_size
@@ -30,15 +22,12 @@ class quick_annotate:
         self.idx = 0
         self.boxSize = boxSize
         self.vertices = []
-        
         self.image_w = self.image.shape[1]
         self.image_h = self.image.shape[0]
-
         
         # Load the camera matrix
         cameraMatrix = self.load_camera_matrix()
         print("cameraMatrix:\n", cameraMatrix)
-
         print("Original image shape: ", (self.image.shape[1], self.image.shape[0]))
         
         # Resize the image  
@@ -47,7 +36,6 @@ class quick_annotate:
         
         print("scaling factor: ", self.scaling)
         print("Resized image shape: ", (w, h))
-    
     
     def calculateWindow(self, image):
         # downscale the image to a size that is manageable

@@ -5,14 +5,17 @@ import itertools
 
 class RectangleMesh:
 
-    def __init__(self, width, height, depth, eulers, position):
+    def __init__(self, width, height, depth, eulers, position, cam):
             
         self.width = width
         self.height = height
         self.depth = depth
+        self.cam = cam
+        
         self.eulers= np.array(eulers, dtype=np.float32) # angle
         self.position= np.array(position, dtype=np.float32) # position
         self.center = (0,0,0,0) # drew rect around (0,0,0)
+        
         self.modelview = glGetDoublev(GL_MODELVIEW_MATRIX)
         
         # Cube vertices and edges
@@ -110,19 +113,25 @@ class RectangleMesh:
         glMatrixMode(GL_MODELVIEW)
         glPushMatrix() 
         glLoadIdentity()
-
         glTranslatef(self.position[0], self.position[1], self.position[2])
-        
-        if orientation_matrix is not None:
 
-            glRotatef(orientation_matrix[0], 1, 0, 0)
-            glRotatef(orientation_matrix[1], 0, 1, 0)
-            glRotatef(orientation_matrix[2], 0, 0, 1)
-            glTranslatef(translation_matrix[0], translation_matrix[1], -translation_matrix[2])
-                
+        
+        # if orientation_matrix is not None and translation_matrix is not None:
+        #     glRotatef(orientation_matrix[0], 1, 0, 0)
+        #     glRotatef(orientation_matrix[1], 0, 1, 0)
+        #     glRotatef(orientation_matrix[2], 0, 0, 1)
+        #     glTranslatef(translation_matrix[0], translation_matrix[1], translation_matrix[2])
+        
+            
         glRotatef(self.eulers[0], 1, 0, 0)
         glRotatef(self.eulers[1], 0, 1, 0)
-        glRotatef(self.eulers[2], 0, 0, 1) 
+        glRotatef(self.eulers[2], 0, 0, 1)
+        # multiply with the cam matrix in variable cam
+        #...
+        # glMultMatrixf(self.cam) 
+         
+        print("posiion", self.position)
+        print("eulers", self.eulers)
         
         glEnable(GL_LINE_SMOOTH)  # Enable line smoothing
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)  # Use the highest quality for line smoothing
