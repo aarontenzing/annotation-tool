@@ -116,7 +116,7 @@ class quick_annotate:
         print("scaling factor: ", self.scaling)
         print("Resized image shape: ", (w, h))
         
-        self.cuboid = cuboid(25.5, 27, 38)  # Set the dimensions of the cuboid
+        self.cuboid = cuboid(boxSize[0], boxSize[1], boxSize[2])  # Set the dimensions of the cuboid
     
     def calculateWindow(self, image):
             
@@ -124,6 +124,7 @@ class quick_annotate:
         self.image_h = image.shape[0]
         self.image_w = image.shape[1]
         scale = 1
+        
         while (self.image_w/scale) > self.screen_size[1] or (self.image_h/scale) > self.screen_size[0]:
             scale += 1
             
@@ -135,7 +136,7 @@ class quick_annotate:
 
     def reset_image(self, image_path):
         self.image = cv2.imread(image_path)
-        w, h = self.calculateWindow(self.image)
+        w, h = self.calculateWindow(self.image) # scaled imager size
         self.image = cv2.resize(self.image, (w, h))
         self.vertices = []          
 
@@ -171,9 +172,8 @@ class quick_annotate:
             
             self.cuboid.set_dimensions(x[0], x[1], x[2])
             object_points = self.cuboid.get_world_coordinates()
-            # object_points = object_points.reshape(-1, 3)
             image_points = np.array(vertices, dtype=np.float32)
-            # image_points = image_points.reshape(-1, 2)
+        
             status, rotation_vector, translation_vector, _ = cv2.solvePnPGeneric(object_points, image_points, cameraMatrix, distMatrix)
             if not status:
                 continue
@@ -207,7 +207,6 @@ class quick_annotate:
                 best_rotation_vector = rotation_vector
                 best_translation_vector = translation_vector
                 best_dimensions = self.cuboid.get_size()
-                self.cuboid.set_dimensions(best_dimensions[0], best_dimensions[1], best_dimensions[2]) # set dimensions
                 best_object_points = transformed_points
                 best_PNP_image_points = PNP_image_points
                 status = True
@@ -216,6 +215,9 @@ class quick_annotate:
         self.cuboid.set_rotation_vector(best_rotation_vector)
         self.cuboid.set_translation_vector(best_translation_vector)
         self.cuboid.set_image_points(best_PNP_image_points)
+        self.cuboid.set_dimensions(best_dimensions[0], best_dimensions[1], best_dimensions[2])
+        
+        print("Best dimensions: ", best_dimensions, "Error distance: ", error_distance)
                         
         return best_PNP_image_points, best_object_points, best_rotation_vector, best_translation_vector, best_dimensions, status 
             
@@ -224,7 +226,6 @@ class quick_annotate:
         # Create a window and bind the mouse callback function
         cv2.namedWindow('QUICK ANNOTATE')
         cv2.setMouseCallback('QUICK ANNOTATE', self.mouse_callback)
-        
         step = 1
         
         while True:
@@ -240,8 +241,7 @@ class quick_annotate:
                 if self.idx >= len(self.images):
                     self.idx = 0
                 print("Current image: ", self.images[self.idx])
-                self.reset_image(self.images[self.idx]) 
-                
+                self.reset_image(self.images[self.idx])           
                         
             elif key == ord('r'):
                 print("Reset the image")
@@ -258,14 +258,13 @@ class quick_annotate:
                     PNP_imagepoints, object_points, rotation_vector, translation_vector, dimensions, status = self.calculate_best_cuboid(self.boxSize, self.vertices, self.cameraMatrix, self.distMatrix)
                     PNP_imagepoints =  PNP_imagepoints.reshape(-1, 2)
               
-                    
+                    # Draw PNP estimated cuboid
                     if PNP_imagepoints is not None:
                         self.image = cv2.imread(self.images[self.idx])
                         self.draw_cuboid(PNP_imagepoints)
                     else:
                         print("Error: cant draw the cuboid. Please click the vertices. In the right order")
                         self.reset_image(self.images[self.idx])
-                        self.image = cv2.resize(self.image, (int(self.image_w/self.scaling), int(self.image_h/self.scaling))) # resize the image
 
                     self.image = cv2.resize(self.image, (int(self.image_w/self.scaling), int(self.image_h/self.scaling))) # resize the image
   
@@ -310,6 +309,7 @@ class quick_annotate:
                     elif key == ord('Z'):  # Rotate clockwise (around Z-axis)
                         self.cuboid.rotation_vector[2] -= math.radians(step)
                         print("E: Rotate Clockwise")
+                        
                     elif key == ord("a"):  # Left arrow (translate left along X-axis)
                         self.cuboid.translation_vector[0] -= step
                         print("Left Arrow: Move Left")
@@ -322,10 +322,10 @@ class quick_annotate:
                     elif key == ord("s"):  # Down arrow (translate down along Y-axis)
                         self.cuboid.translation_vector[1] += step
                         print("Down Arrow: Move Down")
-                    elif key == ord('e'):  # Page up (translate forward along Z-axis)
+                    elif key == ord('q'):  # Page up (translate forward along Z-axis)
                         self.cuboid.translation_vector[2] -= step
                         print("Z: Move Forward")
-                    elif key == ord('q'):  # Page down (translate backward along Z-axis)
+                    elif key == ord('e'):  # Page down (translate backward along Z-axis)
                         self.cuboid.translation_vector[2] += step
                         print("X: Move Backward")
                         
@@ -341,15 +341,30 @@ class quick_annotate:
                         print("Current step size: ", step)
                     
                     elif key == 13:  # Enter key (save the annotation)
+                        # Save the annotation
                         print("Saved the annotation")
                         image_points_int = [[int(round(point[0])), int(round(point[1]))] for point in image_points]
                         self.data = {"img_name" : self.images[self.idx].split("\\")[-1], "projection": image_points_int, "world": object_points.tolist(), "dimensions": self.cuboid.get_size()}   
                         write_json("pnp_anno.json", self.data)
                         
-                    elif key == 27: # Escape key (exit)
+                        # Reset the cuboid to annotate a new object
+                        del self.cuboid
+                        self.cuboid = cuboid(self.boxSize[0], self.boxSize[1], self.boxSize[2])
+                        
+                        # Move to the next image
+                        self.idx += 1
+                        if self.idx >= len(self.images):
+                            self.idx = 0
+                        self.reset_image(self.images[self.idx]) 
+                        
+                        # Close the window
+                        cv2.destroyWindow('finetune')
+                        self.run()   
+                           
+                    elif key == 27:
                         cv2.destroyWindow('finetune')
                         break
-
+                    
                     key = cv2.waitKey(5) & 0xFF  # Adjust the delay (5 ms) as needed
         
             elif key == 27: # quit the program
